@@ -1,0 +1,10 @@
+{
+  "description": "Fitstay helps travelers evaluate if their chosen hotel matches their trip needs, providing personalized insights for smarter booking decisions.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
