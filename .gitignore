@@ -19,3 +19,5 @@ logs/
 /.plugins/
 /.opencode-skills/
 /.pnpm-store/
+.vercel
+.DS_Store

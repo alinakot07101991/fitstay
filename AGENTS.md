@@ -6,6 +6,10 @@ React + Vite + Tailwind CSS project running inside Figma Make.
 
 Before making product, UX, content, AI-result, scoring, data, payment, or trust-related decisions, read and follow `PRODUCT_GUIDELINES.md`. Treat its resolved rules as authoritative and its open gaps as decisions that require explicit user input.
 
+## Beta launch and historical research
+
+`BETA_LAUNCH_PLAN.md` is the exclusive source for beta launch, pilot, participant recruitment, survey, interview, usability-testing, prototype-testing, ChatGPT comparison and staged-launch material. Do not copy that material into current product specifications. All other product documents treat product value, target audience and differentiated advantage over generic ChatGPT as confirmed foundations.
+
 ## Development Server
 
 A Vite development server is **already running** on `$PORT` (default 8443). You don't need to start it manually.

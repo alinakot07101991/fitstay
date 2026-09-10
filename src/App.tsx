@@ -8,6 +8,7 @@ import aiBlob from '@/imports/blob-animation.png'
 import riskFlagIcon from '@/imports/icon_flag_2_.png'
 import insightsIcon from '@/imports/icon_magnifying_glass.png'
 import alternativesIcon from '@/imports/icon_arrow_clean.png'
+import VisualLab from './VisualLab'
 // v2
 
 type Lang = 'en' | 'ua'
@@ -331,11 +332,11 @@ function Hero({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
             </div>
 
             {/* Result bullets */}
-            <p className="text-[11px] text-ink/35 uppercase tracking-[0.12em] font-sans mb-3">{h.resultLabel}</p>
+            <p className="text-[12px] text-ink/35 uppercase tracking-[0.12em] font-sans mb-3">{h.resultLabel}</p>
             <div className="flex flex-wrap gap-2">
               {h.bullets.map((b) => (
                 <span key={b} className="inline-flex items-center gap-1.5 text-[13px] text-ink/65 font-sans bg-white/70 px-3 py-1.5 rounded-full border border-ink/[0.09]">
-                  <span className="text-coral text-[10px]">✦</span>
+                  <span className="text-coral text-[12px]">✦</span>
                   {b}
                 </span>
               ))}
@@ -355,13 +356,13 @@ function Hero({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
               {/* Score badge */}
               <div className="absolute bottom-5 left-5">
                 <div className="bg-ink/80 backdrop-blur-sm text-white rounded-2xl px-4 py-3 inline-block">
-                  <div className="text-[10px] text-white/70 uppercase tracking-widest font-sans mb-1">Match score</div>
+                  <div className="text-[12px] text-white/70 uppercase tracking-widest font-sans mb-1">Match score</div>
                   <div className="text-[26px] font-semibold font-sans leading-none">93<span className="text-[16px] text-white/70">%</span></div>
                 </div>
               </div>
               {/* Trip tag */}
               <div className="absolute bottom-5 right-5">
-                <div className="bg-lime text-ink text-[11px] font-semibold font-sans rounded-xl px-3 py-2">
+                <div className="bg-lime text-ink text-[12px] font-semibold font-sans rounded-xl px-3 py-2">
                   Family trip ✓
                 </div>
               </div>
@@ -438,7 +439,7 @@ function HowItWorks({ tx }: { tx: Tx }) {
     <section id="how" className="px-6 lg:px-10 py-24 lg:py-32">
       <div className="max-w-7xl mx-auto">
         <div className="mb-16 lg:mb-20">
-          <span className="text-[11px] text-ink/35 uppercase tracking-[0.14em] font-sans">{hiw.label}</span>
+          <span className="text-[12px] text-ink/35 uppercase tracking-[0.14em] font-sans">{hiw.label}</span>
           <h2 className="font-display italic text-ink leading-tight mt-3"
             style={{ fontSize: 'clamp(34px, 4.8vw, 62px)' }}>
             {hiw.h2}
@@ -477,7 +478,7 @@ function Features({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
     <section id="features" className="px-6 lg:px-10 py-24 lg:py-32 bg-white">
       <div className="max-w-7xl mx-auto">
         <div className="mb-16 lg:mb-20">
-          <span className="text-[11px] text-ink/35 uppercase tracking-[0.14em] font-sans">{f.label}</span>
+          <span className="text-[12px] text-ink/35 uppercase tracking-[0.14em] font-sans">{f.label}</span>
           <h2 className="font-display italic text-ink leading-tight mt-3"
             style={{ fontSize: 'clamp(34px, 4.8vw, 62px)' }}>
             {f.h2a}<br />
@@ -496,7 +497,7 @@ function Features({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
                   <div className="font-semibold font-sans text-ink text-[16px] leading-tight">{f.card.hotel}</div>
                   <div className="text-[13px] text-ink/45 font-sans mt-0.5">{f.card.location}</div>
                 </div>
-                <span className="text-[11.5px] bg-ivory text-ink/55 font-sans px-3 py-1.5 rounded-full flex-shrink-0">{f.card.trip}</span>
+                <span className="text-[12px] bg-ivory text-ink/55 font-sans px-3 py-1.5 rounded-full flex-shrink-0">{f.card.trip}</span>
               </div>
               {/* Score bar */}
               <div className="mb-6">
@@ -515,7 +516,7 @@ function Features({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
               <div className="space-y-2.5 mb-3">
                 {f.card.checks.map((c) => (
                   <div key={c} className="flex items-center gap-3 text-[13px]">
-                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-ink text-[10px] font-bold flex-shrink-0" style={{backgroundColor:'#C8E830'}}>✓</span>
+                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-ink text-[12px] font-bold flex-shrink-0" style={{backgroundColor:'#C8E830'}}>✓</span>
                     <span className="text-ink/70 font-sans">{c}</span>
                   </div>
                 ))}
@@ -524,7 +525,7 @@ function Features({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
               <div className="space-y-2.5 mb-6">
                 {f.card.warns.map((w) => (
                   <div key={w} className="flex items-center gap-3 text-[13px]">
-                    <span className="w-5 h-5 rounded-full bg-blush flex items-center justify-center text-ink text-[10px] font-semibold flex-shrink-0">!</span>
+                    <span className="w-5 h-5 rounded-full bg-blush flex items-center justify-center text-ink text-[12px] font-semibold flex-shrink-0">!</span>
                     <span className="text-ink/70 font-sans">{w}</span>
                   </div>
                 ))}
@@ -570,7 +571,7 @@ function Testimonials({ tx }: { tx: Tx }) {
   return (
     <section className="py-24 lg:py-32">
       <div className="px-6 lg:px-10 mb-16 max-w-7xl mx-auto">
-        <span className="text-[11px] text-ink/35 uppercase tracking-[0.14em] font-sans">{t.label}</span>
+        <span className="text-[12px] text-ink/35 uppercase tracking-[0.14em] font-sans">{t.label}</span>
         <h2 className="font-display italic text-ink leading-tight mt-3"
           style={{ fontSize: 'clamp(34px, 4.8vw, 62px)' }}>
           {t.h2}
@@ -598,10 +599,10 @@ function Testimonials({ tx }: { tx: Tx }) {
                   </div>
                   <div>
                     <div className={`text-[13px] font-semibold font-sans ${isDark || isAccent ? 'text-white' : 'text-ink'}`}>{item.name}</div>
-                    <div className={`text-[11.5px] font-sans ${isDark ? 'text-white/40' : isAccent ? 'text-white/50' : 'text-ink/40'}`}>{item.trip}</div>
+                    <div className={`text-[12px] font-sans ${isDark ? 'text-white/40' : isAccent ? 'text-white/50' : 'text-ink/40'}`}>{item.trip}</div>
                   </div>
                 </div>
-                <span className={`text-[11px] font-semibold font-sans px-2.5 py-1 rounded-full whitespace-nowrap ${isAccent ? 'bg-white/20 text-white' : 'bg-lime text-ink'}`}>
+                <span className={`text-[12px] font-semibold font-sans px-2.5 py-1 rounded-full whitespace-nowrap ${isAccent ? 'bg-white/20 text-white' : 'bg-lime text-ink'}`}>
                   {item.tag}
                 </span>
               </div>
@@ -638,7 +639,7 @@ function Pricing({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
         <div className="grid lg:grid-cols-2 gap-16 items-start">
           {/* Left — what you get */}
           <div>
-            <span className="text-[11px] text-white/30 uppercase tracking-[0.14em] font-sans">{p.label}</span>
+            <span className="text-[12px] text-white/30 uppercase tracking-[0.14em] font-sans">{p.label}</span>
             <h2 className="font-display italic text-white leading-tight mt-3 mb-5"
               style={{ fontSize: 'clamp(34px, 4.2vw, 58px)' }}>
               {p.h2}
@@ -672,7 +673,7 @@ function Pricing({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
                   className="w-full h-12 bg-white/[0.07] border border-white/15 text-white text-[14px] font-sans font-medium rounded-full px-5 flex items-center justify-between cursor-pointer hover:border-white/25 transition-colors"
                 >
                   <span>{pack.checks} {p.creditsCheckLabel}</span>
-                  <span className={`text-white/40 text-[11px] transition-transform duration-200 ${dropOpen ? 'rotate-180' : ''}`}>▾</span>
+                  <span className={`text-white/40 text-[12px] transition-transform duration-200 ${dropOpen ? 'rotate-180' : ''}`}>▾</span>
                 </button>
                 {dropOpen && (
                   <div className="absolute top-[calc(100%+6px)] left-0 right-0 bg-[#2A2522] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-xl">
@@ -683,7 +684,7 @@ function Pricing({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
                         className={`w-full px-5 py-3 text-left text-[14px] font-sans flex items-center justify-between hover:bg-white/8 transition-colors ${i === packIdx ? 'text-white' : 'text-white/55'}`}
                       >
                         <span>{pk.checks} {p.creditsCheckLabel}</span>
-                        {i === packIdx && <span className="text-white/40 text-[11px]">✓</span>}
+                        {i === packIdx && <span className="text-white/40 text-[12px]">✓</span>}
                       </button>
                     ))}
                   </div>
@@ -737,7 +738,7 @@ function Faq({ tx }: { tx: Tx }) {
       <div className="max-w-7xl mx-auto">
         <div className="grid lg:grid-cols-[300px_1fr] xl:grid-cols-[360px_1fr] gap-16 items-start">
           <div className="lg:sticky lg:top-28">
-            <span className="text-[11px] text-ink/35 uppercase tracking-[0.14em] font-sans">{f.label}</span>
+            <span className="text-[12px] text-ink/35 uppercase tracking-[0.14em] font-sans">{f.label}</span>
             <h2 className="font-display italic text-ink leading-tight mt-3"
               style={{ fontSize: 'clamp(34px, 4.8vw, 62px)' }}>
               {f.h2}
@@ -800,7 +801,7 @@ function Footer({ tx }: { tx: Tx }) {
             <a key={link} href="#" className="hover:text-ink transition-colors">{link}</a>
           ))}
         </div>
-        <div className="text-[11.5px] font-sans text-ink/28">{f.copy}</div>
+        <div className="text-[12px] font-sans text-ink/28">{f.copy}</div>
       </div>
     </footer>
   )
@@ -970,7 +971,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
           </p>
 
           {mode === 'register' && (
-            <p className="text-center text-[11.5px] font-sans text-ink/30 mt-5 leading-relaxed">
+            <p className="text-center text-[12px] font-sans text-ink/30 mt-5 leading-relaxed">
               {'terms' in c ? c.terms : ''}
             </p>
           )}
@@ -988,6 +989,10 @@ export default function App() {
   const [lang, setLang] = useState<Lang>('en')
   const [page, setPage] = useState<Page>('landing')
   const tx = T[lang]
+
+  if (window.location.pathname.replace(/\/$/, '') === '/design-lab') {
+    return <VisualLab />
+  }
 
   const goAuth = () => { setPage('auth'); window.scrollTo(0, 0) }
   const goBack = () => { setPage('landing'); window.scrollTo(0, 0) }

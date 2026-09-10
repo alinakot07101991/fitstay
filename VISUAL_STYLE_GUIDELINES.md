@@ -116,7 +116,7 @@ Template cards можна виділяти pale peach / blush заливкою �
 - hover — невелика зміна фону або межі;
 - focus — помітний focus ring;
 - disabled — читабельний текст і зрозуміла причина;
-- loading — компактний inline-статус поруч із дією;
+- loading — одна компактна inline-строка аналізу, яку можна розгорнути як акордеон із деталями фактичних етапів; не показувати штучний відсоток готовності;
 - error — спокійне пояснення й шлях до відновлення.
 
 ## 9. Result та evidence UI
@@ -125,11 +125,17 @@ Template cards можна виділяти pale peach / blush заливкою �
 
 Ієрархія:
 
-1. Fits / Preliminary result / Does not meet mandatory requirements.
+1. Fits / Preliminary result / Doesn’t fit. У compact state для `Doesn’t fit` показується лише загальний status; critical details відкриваються в accordion.
 2. Короткий висновок людською мовою.
-3. Загальний score і 3–5 category scores.
+3. Загальний score і чотири category scores.
 4. Strong points, risks і unknowns.
 5. Розкривний evidence block.
+
+Числовий category score завжди супроводжується compact coverage label `Checked X of Y`. Якщо category score не проходить minimum-data gate, slot зберігає місце в системі, але показує `Not enough data` без декоративного або placeholder number.
+
+Overall percentage показується лише після відповідного full або preliminary minimum-data gate. Preliminary number завжди візуально пов’язаний зі статусом `Preliminary result`; `Doesn’t fit`, unknown critical criterion і no-score state не можуть бути візуально перекриті великим percentage.
+
+100% дозволено показувати без artificial cap як `100% Match`, обов’язково разом із `Checked X of Y` і датою аналізу. Не оформлювати 100% як абсолютну гарантію, celebratory claim або proof of an ideal hotel; заборонені формулювання `Perfect match`, `Ideal hotel` і `Guaranteed`.
 
 Композиція загального match score і category scores поки не затверджена. Вона має бути виразним ключовим об’єктом, але не ігровою візуалізацією. Вона не повинна:
 
@@ -168,6 +174,8 @@ Evidence block другорядний візуально, але доступн�
 - тривожні формулювання без пояснення й джерела.
 
 MVP-інтерфейс — англійською.
+
+У коротких labels для кнопок і status badges не використовувати артиклі, якщо формулювання залишається природним англійською. Приклади: `Add link`, `Find alternative`, `Doesn’t fit`. Не скорочувати текст до граматично неприродних форм на кшталт `Not fit`.
 
 ## 11. Motion
 
@@ -218,7 +226,7 @@ Motion підтримує editorial-характер, але не відволі
 
 ## Відкриті рішення
 
-1. Візуальна композиція загального match score і 3–5 category scores.
+1. Візуальна композиція загального match score і чотирьох category scores: `Room & comfort`, `Food & service`, `Location & logistics` і `Facilities & experience`.
 2. Точні design tokens: neutrals, semantic colors, typography scale і component radii.
 3. Роль великих атмосферних фотографій після перевірки реальних екранів.
 4. Використання 3D blob у глобальному loading state.
