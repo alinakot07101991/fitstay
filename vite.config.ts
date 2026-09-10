@@ -1,6 +1,8 @@
 import { defineConfig, loadEnv, type HtmlTagDescriptor, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { sites } from '@openai/sites-vite-plugin'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
@@ -14,12 +16,14 @@ export default defineConfig(({ mode }) => {
   return {
     base: process.env.FIGMA_PUBLIC_URL ? `${process.env.FIGMA_PUBLIC_URL}/` : '/',
     build: {
+      outDir: 'dist/client',
       sourcemap: emitSourcemaps ? 'inline' : false,
       minify: !emitSourcemaps,
     },
     plugins: [
       react(),
       tailwindcss(),
+      sites(),
       groqTranscriptionDev(environment.GROQ_API_KEY),
       sitesStaticWorker(),
       figmaSiteConfiguration(siteConfiguration),
@@ -140,13 +144,15 @@ function groqTranscriptionDev(apiKey?: string): Plugin {
 
 /** Emits the Cloudflare Worker entrypoint required by Sites, including the private Groq proxy. */
 function sitesStaticWorker(): Plugin {
+  let root = process.cwd()
+
   return {
     name: 'sites-static-worker',
-    generateBundle() {
-      this.emitFile({
-        type: 'asset',
-        fileName: 'server/index.js',
-        source: `const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
+    configResolved(config) {
+      root = config.root
+    },
+    async closeBundle() {
+      const workerSource = `const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
 const GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
@@ -208,8 +214,10 @@ export default {
     if (response.status !== 404) return response
     return env.ASSETS.fetch(new Request(new URL('/index.html', request.url), request))
   },
-}\n`,
-      })
+}\n`
+      const workerDirectory = path.resolve(root, 'dist/server')
+      await mkdir(workerDirectory, { recursive: true })
+      await writeFile(path.resolve(workerDirectory, 'index.js'), workerSource, 'utf8')
     },
   }
 }
