@@ -112,7 +112,7 @@ const T = {
       cta: 'Try free',
       ctaNote: '2 checks included · No credit card',
       creditsLabel: 'Need more checks?',
-      creditsPrice: '$9.99',
+      creditsPrice: '€9.99',
       creditsUnit: '5 checks',
       creditsNote: 'Credits never expire',
       creditsCheckLabel: 'checks',
@@ -732,12 +732,12 @@ function Pricing({ tx, onAuth }: { tx: Tx; onAuth: () => void }) {
 
               {/* Price display */}
               <div className="flex items-baseline gap-3 mb-1">
-                <span className="text-[52px] font-bold font-sans text-white leading-none">${pack.price}</span>
+                <span className="text-[52px] font-bold font-sans text-white leading-none">€{pack.price}</span>
                 {pack.discount > 0 && (
                   <span className="text-lime text-[13px] font-semibold font-sans">{pack.discount}% off</span>
                 )}
               </div>
-              <p className="text-white/55 text-[12px] font-sans mb-1">${perCheck} {p.creditsPerCheck}</p>
+              <p className="text-white/55 text-[12px] font-sans mb-1">€{perCheck} {p.creditsPerCheck}</p>
               <p className="text-white/45 text-[12px] font-sans mb-0">{p.creditsNote}</p>
             </div>
           </div>
