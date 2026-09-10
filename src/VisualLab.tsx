@@ -262,7 +262,7 @@ function EmptyHistory() {
         Your hotel checks will appear here
       </h3>
       <p className="mt-2 max-w-[220px] text-[12px] leading-relaxed text-[#817a73]">
-        Start a check or identify a hotel to keep it in your search history.
+        Start a check or identify a hotel to keep it in your search history
       </p>
     </div>
   )
@@ -368,8 +368,8 @@ function SearchHistoryModal({
             </h3>
             <p className="mt-2 max-w-[300px] text-[12px] leading-relaxed text-[#817a73]">
               {state === "empty"
-                ? "Your hotel checks will appear here after you start your first check."
-                : "Try a different hotel name, destination, or date."}
+                ? "Your hotel checks will appear here after you start your first check"
+                : "Try a different hotel name, destination, or date"}
             </p>
           </div>
         )}
@@ -481,7 +481,7 @@ function Preferences({ go }: { go: Go }) {
       </div>
       <p className="mt-5 text-[12px] leading-relaxed text-[#7e7770]">
         These preferences help us personalize your hotel match and
-        recommendations.
+        recommendations
       </p>
       <div className="mt-5 divide-y divide-[#ebe7e1]">
         {rows.map(([icon, label, value]) => (
@@ -770,7 +770,7 @@ function Home({
                 Good evening, Olivia
               </h1>
               <p className="mt-2 text-[14px] text-[#79736c]">
-                See how well a hotel fits your trip and what to watch out for.
+                See how well a hotel fits your trip and what to watch out for
               </p>
             </div>
             <form onSubmit={submitHotel} className="mt-10">
@@ -824,7 +824,7 @@ function Home({
               {chatStage === "matches" && (
                 <div className="mt-7" aria-live="polite">
                   <p className="text-[14px]">Choose the hotel you mean</p>
-                  <p className="mt-2 text-[12px] text-[#817a73]">I found these matches across different destinations.</p>
+                  <p className="mt-2 text-[12px] text-[#817a73]">I found these matches across different destinations</p>
                   <div className="mt-4 space-y-2">
                     {candidates.map((hotel) => (
                       <button
@@ -858,14 +858,14 @@ function Home({
               {chatStage === "none" && (
                 <div className="mt-7" aria-live="polite">
                   <p className="text-[14px]">No matching hotels found</p>
-                  <p className="mt-2 text-[14px] text-[#817a73]">Try another word, a destination, the full hotel name, or a hotel link.</p>
+                  <p className="mt-2 text-[14px] text-[#817a73]">Try another word, a destination, the full hotel name, or a hotel link</p>
                 </div>
               )}
 
               {chatStage === "awaiting-input" && (
                 <div className="mt-7" aria-live="polite">
                   <p className="text-[14px]">Enter another hotel</p>
-                  <p className="mt-2 text-[14px] text-[#817a73]">You can use a hotel name, destination, partial phrase, or link.</p>
+                  <p className="mt-2 text-[14px] text-[#817a73]">You can use a hotel name, destination, partial phrase, or link</p>
                 </div>
               )}
 
@@ -887,7 +887,7 @@ function Home({
                     <Button primary onClick={() => { resolveDraft(); go("analysis") }}>Yes, start check</Button>
                     <Button onClick={requestAnotherHotel}>No, change hotel</Button>
                   </div>
-                  <p className="mt-3 text-[12px] text-[#9b948c]">A credit is used only after you confirm and start the check.</p>
+                  <p className="mt-3 text-[12px] text-[#9b948c]">A credit is used only after you confirm and start the check</p>
                 </div>
               )}
             </div>
@@ -1009,7 +1009,7 @@ function Home({
               <Icon name="close" />
             </button>
             <h2 id="compare-hotels-title" className="pr-12 text-[24px] font-bold">Compare hotels is coming soon</h2>
-            <p className="mt-4 text-[14px] leading-relaxed text-[#756f68]">You’ll soon be able to compare hotels side by side and see which one fits your preferences better.</p>
+            <p className="mt-4 text-[14px] leading-relaxed text-[#756f68]">You’ll soon be able to compare hotels side by side and see which one fits your preferences better</p>
             <div className="mt-7"><Button primary onClick={() => setTemplateModal(false)}>Got it</Button></div>
           </div>
         </div>
@@ -1053,7 +1053,7 @@ function Account({
           <Brand />
           <h1 className="mt-8 text-[29px] font-bold">Check your email</h1>
           <p className="mt-3 text-[14px] text-[#777169]">
-            We sent a magic sign-in link to olivia@example.com.
+            We sent a magic sign-in link to olivia@example.com
           </p>
           <div className="mt-7">
             <Button primary full onClick={() => go("onboarding")}>
@@ -1104,7 +1104,7 @@ function Account({
         <Brand />
         <h1 className="mt-8 text-[30px] font-bold">Create your account</h1>
         <p className="mt-2 text-[12px] text-[#7b756e]">
-          Start with 2 free hotel checks.
+          Start with 2 free hotel checks
         </p>
         <div className="mt-7 space-y-3">
           <Button full>Continue with Google</Button>
@@ -1128,12 +1128,12 @@ const states: Partial<Record<ScreenId, [string, string, string]>> = {
   identify: [
     "Hotel identified",
     "Gennadi Grand Resort",
-    "Gennadi, Rhodes, Greece · Confirm the property before analysis starts.",
+    "Gennadi, Rhodes, Greece · Confirm the property before analysis starts",
   ],
   ambiguous: [
     "We found a few matches",
     "Which hotel do you mean?",
-    "Choose the exact property before we start your check.",
+    "Choose the exact property before we start your check",
   ],
   "not-found": [
     "Hotel not found",
@@ -1347,17 +1347,17 @@ function Result({ viewport, go }: { viewport: Viewport; go: Go }) {
           </div>
           <div className="p-7">
             <h2 className="text-[21px] font-bold">
-              A strong match for a relaxed family stay.
+              A strong match for a relaxed family stay
             </h2>
             <p className="mt-3 text-[12px] leading-relaxed text-[#7c756d]">
               The hotel meets your most important requirements. Two location
               details need attention.
             </p>
             <p className="mt-6 text-[12px] text-[#477555]">
-              ✓ Quiet rooms are supported by repeated recent signals.
+              ✓ Quiet rooms are supported by repeated recent signals
             </p>
             <p className="mt-3 text-[12px] text-[#a3682e]">
-              ! Airport transfer time may be longer than expected.
+              ! Airport transfer time may be longer than expected
             </p>
           </div>
         </section>
@@ -1383,7 +1383,7 @@ function Result({ viewport, go }: { viewport: Viewport; go: Go }) {
           </summary>
           <p className="mt-4 text-[12px] text-[#7c756d]">
             Evidence is grouped by criterion with source, date, status and
-            original quote.
+            original quote
           </p>
         </details>
         <div className="mt-5">
@@ -1522,9 +1522,9 @@ function Profile({ viewport, go }: { viewport: Viewport; go: Go }) {
 }
 
 function UtilityPage({ screen, viewport, go }: { screen: "saved" | "settings" | "help"; viewport: Viewport; go: Go }) {
-  if (screen === "saved") return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[820px]"><h1 className="text-[30px] font-bold">Saved hotels</h1><p className="mt-2 text-[12px] text-[#7b756e]">Hotels saved with a specific result version.</p><div className="mt-6 grid gap-4">{[["Gennadi Grand Resort","Rhodes, Greece","82% Match",rhodesImage],["Baros Maldives","Maldives","Saved result",maldivesImage]].map(([hotel,place,status,image])=><button key={hotel} onClick={()=>go("result")} className="flex items-center gap-4 rounded-[24px] border border-[#e2ddd6] bg-white p-4 text-left hover:border-[#bcb5ad] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><img src={image} alt="" className="size-16 rounded-2xl object-cover"/><span className="flex-1"><b className="block text-[14px]">{hotel}</b><span className="mt-1 block text-[12px] text-[#7b756e]">{place}</span></span><span className="text-[12px] font-semibold text-[#477555]">{status}</span></button>)}</div></div></Shell>
+  if (screen === "saved") return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[820px]"><h1 className="text-[30px] font-bold">Saved hotels</h1><p className="mt-2 text-[12px] text-[#7b756e]">Hotels saved with a specific result version</p><div className="mt-6 grid gap-4">{[["Gennadi Grand Resort","Rhodes, Greece","82% Match",rhodesImage],["Baros Maldives","Maldives","Saved result",maldivesImage]].map(([hotel,place,status,image])=><button key={hotel} onClick={()=>go("result")} className="flex items-center gap-4 rounded-[24px] border border-[#e2ddd6] bg-white p-4 text-left hover:border-[#bcb5ad] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><img src={image} alt="" className="size-16 rounded-2xl object-cover"/><span className="flex-1"><b className="block text-[14px]">{hotel}</b><span className="mt-1 block text-[12px] text-[#7b756e]">{place}</span></span><span className="text-[12px] font-semibold text-[#477555]">{status}</span></button>)}</div></div></Shell>
   if (screen === "settings") return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[760px]"><h1 className="text-[30px] font-bold">Settings</h1><div className="mt-6 space-y-4"><Card><h2 className="font-bold">Account</h2><div className="mt-5 space-y-4"><Field label="Name" value="Olivia"/><Field label="Email" value="olivia@example.com"/><Field label="Sign-in method" value="Email magic link"/></div></Card><Card><h2 className="font-bold">Notifications</h2><label className="mt-5 flex items-center justify-between text-[12px]"><span>In-app check updates</span><input type="checkbox" defaultChecked/></label><label className="mt-4 flex items-center justify-between text-[12px]"><span>Email check updates</span><input type="checkbox"/></label></Card></div></div></Shell>
-  return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[760px]"><h1 className="text-[30px] font-bold">Help & Support</h1><p className="mt-2 text-[12px] text-[#7b756e]">Find answers or contact support about a specific check.</p><div className="mt-6 space-y-4"><Card><h2 className="font-bold">How can we help?</h2><div className="mt-5 space-y-2">{["Understanding your result","Credits and payments","Report incorrect information","Account access"].map(item=><button key={item} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-[#e2ddd6] px-4 text-left text-[12px] font-semibold hover:bg-[#f7f4ef] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50">{item}<Icon name="arrow"/></button>)}</div><div className="mt-6"><Button primary>Contact support</Button></div></Card></div></div></Shell>
+  return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[760px]"><h1 className="text-[30px] font-bold">Help & Support</h1><p className="mt-2 text-[12px] text-[#7b756e]">Find answers or contact support about a specific check</p><div className="mt-6 space-y-4"><Card><h2 className="font-bold">How can we help?</h2><div className="mt-5 space-y-2">{["Understanding your result","Credits and payments","Report incorrect information","Account access"].map(item=><button key={item} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-[#e2ddd6] px-4 text-left text-[12px] font-semibold hover:bg-[#f7f4ef] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50">{item}<Icon name="arrow"/></button>)}</div><div className="mt-6"><Button primary>Contact support</Button></div></Card></div></div></Shell>
 }
 
 function Preview({

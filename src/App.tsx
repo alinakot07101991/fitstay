@@ -57,13 +57,13 @@ const T = {
       l1: 'Most travelers book first.',
       l2: 'Wonder later.',
       l3: { pre: 'fitstay. helps you ', accent: 'know', post: '' },
-      l4: 'before you go.',
+      l4: 'before you go',
       sub: 'Stop relying on generic star ratings and sponsored reviews. Get a real analysis built around your trip, your people, and your priorities.',
       cta: 'Try free',
     },
     hiw: {
       label: 'How it works',
-      h2: 'Three steps to travel clarity.',
+      h2: 'Three steps to travel clarity',
       steps: [
         { n: '01', title: 'Share your trip context', desc: "Who's traveling, when, and what kind of experience you're after. Thirty seconds." },
         { n: '02', title: 'Enter your hotel', desc: "Paste a hotel name or link. We'll recognize it instantly." },
@@ -73,13 +73,13 @@ const T = {
     features: {
       label: 'What you get',
       h2a: 'Not just reviews.',
-      h2b: 'Your match.',
+      h2b: 'Your match',
       sub: "fitstay. doesn't repeat what Google already shows you. It connects the dots between the hotel and your specific trip.",
       items: [
-        { sym: '✦', title: 'Personalized match score', desc: 'A single number showing how well this hotel fits your exact trip context.' },
+        { sym: '✦', title: 'Personalized match score', desc: 'A single number showing how well this hotel fits your exact trip context' },
         { sym: '◈', title: 'Honest risk flags', desc: 'Noise complaints for light sleepers. Pet policies for dog travelers. Things reviews always bury.' },
         { sym: '◉', title: 'Trip-specific insights', desc: 'Not generic pros and cons. Analysis tied to your dates, group size, and purpose.' },
-        { sym: '◎', title: 'Smarter alternatives', desc: "When the fit isn't perfect, we surface hotels that score higher for your trip." },
+        { sym: '◎', title: 'Smarter alternatives', desc: "When the fit isn't perfect, we surface hotels that score higher for your trip" },
       ],
       card: {
         hotel: 'Marina Bay Sands',
@@ -94,7 +94,7 @@ const T = {
     },
     testimonials: {
       label: 'What travelers say',
-      h2: 'Finally, a tool that gets it.',
+      h2: 'Finally, a tool that gets it',
       items: [
         { initials: 'SK', name: 'Sarah K.', trip: 'Family trip to Bali', quote: "I'd already picked a beautiful hotel. fitstay. flagged the pool wasn't fenced. No review mentioned it. We switched. Worth every second.", tag: '97% match' },
         { initials: 'MT', name: 'Marco T.', trip: 'Honeymoon in Maldives', quote: 'The match score was 94%. We booked with zero hesitation. The hotel was exactly as described, and we knew why before we landed.', tag: '94% match' },
@@ -106,7 +106,7 @@ const T = {
     },
     pricing: {
       label: 'Pricing',
-      h2: 'Try free. Buy more when you need it.',
+      h2: 'Try free. Buy more when you need it',
       sub: 'Every check includes the full report: match score, risk flags, and hotel alternatives. Start with 2 free checks, no card required.',
       features: ['Personalized match score', 'Full fit report', 'Risk flags & warnings', 'Hotel alternatives', 'Trip context analysis', 'Instant results'],
       cta: 'Try free',
@@ -122,7 +122,7 @@ const T = {
     },
     faq: {
       label: 'Questions',
-      h2: 'Worth asking.',
+      h2: 'Worth asking',
       items: [
         { q: 'Do I need to search for a hotel on the platform?', a: "No. You can start with a specific hotel you've already chosen and want to evaluate before booking." },
         { q: 'What do I get after the hotel assessment?', a: "You'll get an assessment of how well the hotel matches your needs and travel scenario. The platform also explains its strengths and weaknesses and highlights potential risks. If relevant alternatives are available, you'll be able to explore those as well." },
@@ -133,13 +133,13 @@ const T = {
       ],
     },
     footerCta: {
-      h2: 'Your next trip deserves a better start.',
+      h2: 'Your next trip deserves a better start',
       sub: 'Check your hotel in under a minute. Free to try.',
       cta: 'Check my hotel',
-      note: 'No credit card required.',
+      note: 'No credit card required',
     },
     footer: {
-      tagline: 'AI hotel intelligence for the traveler who plans with purpose.',
+      tagline: 'AI hotel intelligence for the traveler who plans with purpose',
       nav: ['How it works', 'Features', 'Pricing', 'FAQ'],
       legal: ['Privacy', 'Terms'],
       copy: '© 2026 fitstay. All rights reserved.',
@@ -168,13 +168,13 @@ const T = {
       l1: 'Більшість спочатку бронюють.',
       l2: 'Потім думають.',
       l3: { pre: 'fitstay. допомагає вам ', accent: 'знати', post: '' },
-      l4: 'до того, як вирушите.',
+      l4: 'до того, як вирушите',
       sub: 'Перестаньте покладатися на загальні рейтинги та спонсоровані відгуки. Отримайте реальний аналіз, побудований навколо вашої поїздки, вашої компанії та ваших пріоритетів.',
       cta: 'Спробувати безкоштовно',
     },
     hiw: {
       label: 'Як це працює',
-      h2: 'Три кроки до впевненої подорожі.',
+      h2: 'Три кроки до впевненої подорожі',
       steps: [
         { n: '01', title: 'Розкажіть про поїздку', desc: 'Хто їде, коли, який вид відпочинку потрібен. Тридцять секунд.' },
         { n: '02', title: 'Вкажіть готель', desc: 'Введіть назву або посилання. Ми розпізнаємо його миттєво.' },
@@ -184,13 +184,13 @@ const T = {
     features: {
       label: 'Що ви отримуєте',
       h2a: 'Не просто відгуки.',
-      h2b: 'Ваш збіг.',
+      h2b: 'Ваш збіг',
       sub: "fitstay. не повторює те, що вже показує Google. Ми з'єднуємо готель із вашою конкретною поїздкою.",
       items: [
-        { sym: '✦', title: 'Персоналізований рейтинг', desc: 'Одне число, що показує, наскільки готель підходить для вашої поїздки.' },
+        { sym: '✦', title: 'Персоналізований рейтинг', desc: 'Одне число, що показує, наскільки готель підходить для вашої поїздки' },
         { sym: '◈', title: 'Чесні попередження', desc: 'Шум для чутливих. Правила щодо тварин. Те, що ховається у відгуках.' },
-        { sym: '◉', title: 'Аналіз під вашу поїздку', desc: "Аналіз прив'язаний до ваших дат і мети, а не загальні плюси і мінуси." },
-        { sym: '◎', title: 'Кращі альтернативи', desc: 'Коли збіг неідеальний, ми показуємо готелі з вищим рейтингом для вас.' },
+        { sym: '◉', title: 'Аналіз під вашу поїздку', desc: "Аналіз прив'язаний до ваших дат і мети, а не загальні плюси і мінуси" },
+        { sym: '◎', title: 'Кращі альтернативи', desc: 'Коли збіг неідеальний, ми показуємо готелі з вищим рейтингом для вас' },
       ],
       card: {
         hotel: 'Marina Bay Sands',
@@ -205,7 +205,7 @@ const T = {
     },
     testimonials: {
       label: 'Що кажуть мандрівники',
-      h2: 'Нарешті інструмент, який розуміє.',
+      h2: 'Нарешті інструмент, який розуміє',
       items: [
         { initials: 'СК', name: 'Сара К.', trip: 'Сімейна поїздка на Балі', quote: 'Я вже обрала чудовий готель. fitstay. попередив, що басейн без огорожі. Жоден відгук не згадував. Ми змінили. Варто було.', tag: '97% збіг' },
         { initials: 'МТ', name: 'Марко Т.', trip: 'Медовий місяць на Мальдівах', quote: 'Рейтинг збігу 94%. Ми забронювали без вагань. Готель виявився саме таким, і ми знали це ще до прильоту.', tag: '94% збіг' },
@@ -217,7 +217,7 @@ const T = {
     },
     pricing: {
       label: 'Ціни',
-      h2: 'Спробуйте безкоштовно. Купуйте більше коли потрібно.',
+      h2: 'Спробуйте безкоштовно. Купуйте більше коли потрібно',
       sub: 'Кожна перевірка включає повний звіт: рейтинг збігу, попередження та альтернативи. Починайте з 2 безкоштовних перевірок, без картки.',
       features: ['Персоналізований рейтинг збігу', 'Повний звіт відповідності', 'Попередження та ризики', 'Альтернативні готелі', 'Аналіз контексту поїздки', 'Миттєвий результат'],
       cta: 'Спробувати безкоштовно',
@@ -231,7 +231,7 @@ const T = {
     },
     faq: {
       label: 'Питання',
-      h2: 'Варті уваги.',
+      h2: 'Варті уваги',
       items: [
         { q: 'Чи потрібно шукати готель на платформі?', a: "Ні. Ви можете одразу вказати конкретний готель, який уже розглядаєте, і оцінити його перед бронюванням." },
         { q: 'Що я отримаю після оцінки готелю?', a: "Ви отримаєте оцінку того, наскільки готель відповідає вашим потребам і сценарію подорожі. Платформа також пояснить його сильні та слабкі сторони і виділить потенційні ризики. За наявності релевантних альтернатив ви зможете їх переглянути." },
@@ -242,13 +242,13 @@ const T = {
       ],
     },
     footerCta: {
-      h2: 'Ваша наступна поїздка заслуговує кращого початку.',
+      h2: 'Ваша наступна поїздка заслуговує кращого початку',
       sub: 'Перевірте готель менш ніж за хвилину. Безкоштовно.',
       cta: 'Перевірити готель',
-      note: 'Картка не потрібна.',
+      note: 'Картка не потрібна',
     },
     footer: {
-      tagline: 'AI-аналіз готелів для мандрівника, який планує свідомо.',
+      tagline: 'AI-аналіз готелів для мандрівника, який планує свідомо',
       nav: ['Як це працює', 'Можливості', 'Ціни', 'FAQ'],
       legal: ['Конфіденційність', 'Умови'],
       copy: '© 2026 fitstay. Всі права захищено.',
@@ -911,10 +911,10 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
   const isRegister = mode === 'register'
   const continueToOnboarding = new URLSearchParams(window.location.search).get('next') === 'onboarding'
   const destination = isRegister || continueToOnboarding ? '/design-lab?preview=onboarding' : '/design-lab?preview=home'
-  const title = isRegister ? (isUA ? 'Створити акаунт' : 'Create your account') : (isUA ? 'Увійти до fitstay.' : 'Log in to fitstay.')
+  const title = isRegister ? (isUA ? 'Створити акаунт' : 'Create your account') : (isUA ? 'Увійти до fitstay' : 'Log in to fitstay')
   const sub = isRegister
-    ? (isUA ? 'Почніть безкоштовно — 2 перевірки готелів включено.' : 'Start free — 2 hotel checks included.')
-    : (isUA ? 'Увійдіть, щоб продовжити роботу з перевірками готелів.' : 'Log in to continue to your hotel checks.')
+    ? (isUA ? 'Почніть безкоштовно — 2 перевірки готелів включено' : 'Start free — 2 hotel checks included')
+    : (isUA ? 'Увійдіть, щоб продовжити роботу з перевірками готелів' : 'Log in to continue to your hotel checks')
 
   const handleEmailAuth = async () => {
     if (loading) return
@@ -1074,7 +1074,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
                 <div>
                   <label htmlFor="auth-password" className="block text-[12px] font-medium text-ink/50 mb-1.5">{isUA ? 'Пароль' : 'Password'}</label>
                   <input id="auth-password" type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} value={password} onChange={(event) => { setPassword(event.target.value); if (error) setError('') }} required minLength={isRegister ? 8 : 1} aria-describedby={isRegister ? 'password-requirements' : undefined} placeholder={isRegister ? (isUA ? 'Створіть пароль' : 'Create a password') : (isUA ? 'Введіть пароль' : 'Enter a password')} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
-                  {isRegister && <p id="password-requirements" className="mt-2 px-1 text-[12px] leading-relaxed text-ink/45">{isUA ? 'Щонайменше 8 символів, 1 велика літера та 1 цифра.' : 'At least 8 characters, 1 uppercase letter, and 1 number.'}</p>}
+                  {isRegister && <p id="password-requirements" className="mt-2 px-1 text-[12px] leading-relaxed text-ink/45">{isUA ? 'Щонайменше 8 символів, 1 велика літера та 1 цифра' : 'At least 8 characters, 1 uppercase letter, and 1 number'}</p>}
                 </div>
                 {isRegister && (
                   <label className="flex cursor-pointer items-start gap-3 rounded-2xl px-1 py-2 text-[14px] leading-relaxed text-ink/55">
@@ -1162,11 +1162,11 @@ function EmailVerificationCallback({ lang }: { lang: Lang }) {
       <div className="w-full max-w-[400px] text-center">
         <img src={aiBlob} alt="" className="w-24 h-24 object-contain mb-8 mx-auto" />
         <h1 className="font-display italic text-ink leading-tight" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{title}</h1>
-        {state === 'loading' && <p className="mt-4 text-[14px] text-ink/50">{isUA ? 'Це займе лише мить.' : 'This will only take a moment.'}</p>}
-        {state === 'success' && <p role="status" className="mt-4 text-[14px] text-ink/50">{isUA ? 'Переходимо до налаштування профілю.' : 'Taking you to profile setup.'}</p>}
+        {state === 'loading' && <p className="mt-4 text-[14px] text-ink/50">{isUA ? 'Це займе лише мить' : 'This will only take a moment'}</p>}
+        {state === 'success' && <p role="status" className="mt-4 text-[14px] text-ink/50">{isUA ? 'Переходимо до налаштування профілю' : 'Taking you to profile setup'}</p>}
         {state === 'sign-in' && (
           <div className="mt-5">
-            <p className="text-[14px] leading-relaxed text-ink/50">{isUA ? 'Увійдіть у підтверджений акаунт, щоб перейти до онбордингу.' : 'Log in to your verified account to continue to onboarding.'}</p>
+            <p className="text-[14px] leading-relaxed text-ink/50">{isUA ? 'Увійдіть у підтверджений акаунт, щоб перейти до онбордингу' : 'Log in to your verified account to continue to onboarding'}</p>
             <a href="/?auth=1&next=onboarding" className="mt-7 inline-flex h-12 items-center justify-center rounded-full bg-coral px-7 text-[14px] font-bold text-white hover:bg-[#e54d49]">{isUA ? 'Увійти' : 'Log in'}</a>
           </div>
         )}
@@ -1237,8 +1237,8 @@ function EmailLinkCallback({ lang }: { lang: Lang }) {
       <div className="w-full max-w-[400px] text-center">
         <img src={aiBlob} alt="" className="w-24 h-24 object-contain mb-8 mx-auto" />
         <h1 className="font-display italic text-ink leading-tight" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{title}</h1>
-        {state === 'loading' && <p className="mt-4 text-[14px] text-ink/50">{isUA ? 'Перевіряємо безпечне посилання.' : 'Checking your secure sign-in link.'}</p>}
-        {state === 'success' && <p role="status" className="mt-4 text-[14px] text-ink/50">{isUA ? 'Переходимо до налаштування профілю.' : 'Taking you to profile setup.'}</p>}
+        {state === 'loading' && <p className="mt-4 text-[14px] text-ink/50">{isUA ? 'Перевіряємо безпечне посилання' : 'Checking your secure sign-in link'}</p>}
+        {state === 'success' && <p role="status" className="mt-4 text-[14px] text-ink/50">{isUA ? 'Переходимо до налаштування профілю' : 'Taking you to profile setup'}</p>}
         {state === 'cross-device' && (
           <form onSubmit={(event) => { event.preventDefault(); void completeSignIn(email) }} className="mt-7 text-left">
             <p className="mb-5 text-center text-[14px] leading-relaxed text-ink/50">{isUA ? 'Посилання відкрито в іншому браузері або на іншому пристрої. Введіть email, на який ми його надіслали.' : 'This link was opened in another browser or on another device. Enter the email address that received it.'}</p>
@@ -1318,7 +1318,7 @@ function EmailVerificationGate({ user, lang }: { user: User; lang: Lang }) {
       <div className="w-full max-w-[400px] text-center" aria-live="polite">
         <img src={aiBlob} alt="" className="w-24 h-24 object-contain mb-8 mx-auto" />
         <h1 className="font-display italic text-ink leading-tight" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{isUA ? 'Підтвердьте email' : 'Check your email'}</h1>
-        <p className="mt-4 text-[14px] leading-relaxed text-ink/55">{isUA ? 'Щоб перейти до онбордингу, підтвердьте адресу з листа, надісланого на' : 'Verify your address using the link we sent before continuing to onboarding.'}</p>
+        <p className="mt-4 text-[14px] leading-relaxed text-ink/55">{isUA ? 'Щоб перейти до онбордингу, підтвердьте адресу з листа, надісланого на' : 'Verify your address using the link we sent before continuing to onboarding'}</p>
         {user.email && <p className="mt-1 break-all text-[14px] font-semibold text-ink">{user.email}</p>}
         {error && <p role="alert" className="mt-5 rounded-2xl bg-[#fff0eb] px-4 py-3 text-[12px] font-medium text-[#b74339]">{error}</p>}
         {notice && <p role="status" className="mt-5 rounded-2xl bg-[#edf5ee] px-4 py-3 text-[12px] font-medium text-[#3f6748]">{notice}</p>}
