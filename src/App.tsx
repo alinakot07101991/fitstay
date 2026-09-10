@@ -11,6 +11,7 @@ import {
   signInWithEmailAndPassword,
   signInWithEmailLink,
   signInWithPopup,
+  signOut,
   updateProfile,
   type AuthProvider,
   type User,
@@ -1002,12 +1003,20 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
     }
   }
 
-  const backToLogin = () => {
-    setVerificationEmail('')
-    setMode('login')
-    setPassword('')
-    setNotice('')
-    setError('')
+  const backToLogin = async () => {
+    if (loading) return
+    setLoading(true)
+    try {
+      await signOut(auth)
+      window.localStorage.removeItem(pendingEmailVerificationKey)
+      setVerificationEmail('')
+      setMode('login')
+      setPassword('')
+      setNotice('')
+      setError('')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -1030,7 +1039,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
               <button type="button" onClick={() => void resendVerification()} disabled={loading} className="mt-7 w-full h-12 bg-coral text-white text-[14px] font-bold rounded-full hover:bg-[#e54d49] disabled:cursor-wait disabled:opacity-60">
                 {loading ? (isUA ? 'Надсилаємо…' : 'Sending…') : (isUA ? 'Надіслати ще раз' : 'Resend email')}
               </button>
-              <button type="button" onClick={backToLogin} disabled={loading} className="mt-3 h-11 px-5 text-[13px] font-semibold text-ink/55 hover:text-ink disabled:opacity-60">
+              <button type="button" onClick={() => void backToLogin()} disabled={loading} className="mt-3 h-11 px-5 text-[13px] font-semibold text-ink/55 hover:text-ink disabled:opacity-60">
                 {isUA ? 'Повернутися до входу' : 'Back to log in'}
               </button>
             </div>
@@ -1242,6 +1251,124 @@ function EmailLinkCallback({ lang }: { lang: Lang }) {
   )
 }
 
+function EmailVerificationGate({ user, lang }: { user: User; lang: Lang }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const isUA = lang === 'ua'
+
+  const resendVerification = async () => {
+    if (loading) return
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      await sendAccountVerification(user, lang)
+      window.localStorage.setItem(pendingEmailVerificationKey, user.email || '')
+      setNotice(isUA ? 'Нове посилання надіслано.' : 'A new verification link was sent.')
+    } catch (authError) {
+      setError(authErrorMessage(authError, isUA))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const checkVerification = async () => {
+    if (loading) return
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      await reload(user)
+      if (user.emailVerified) {
+        window.localStorage.removeItem(pendingEmailVerificationKey)
+        window.location.replace('/design-lab?preview=onboarding')
+        return
+      }
+      setError(isUA ? 'Email ще не підтверджено. Відкрийте посилання з листа.' : 'Your email is not verified yet. Open the link from the email.')
+    } catch (authError) {
+      setError(authErrorMessage(authError, isUA))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const useAnotherAccount = async () => {
+    if (loading) return
+    setLoading(true)
+    try {
+      await signOut(auth)
+      window.localStorage.removeItem(pendingEmailVerificationKey)
+      window.location.replace('/?auth=1')
+    } catch (authError) {
+      setError(authErrorMessage(authError, isUA))
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-ivory font-sans flex items-center justify-center px-6 py-16">
+      <div className="w-full max-w-[400px] text-center" aria-live="polite">
+        <img src={aiBlob} alt="" className="w-24 h-24 object-contain mb-8 mx-auto" />
+        <h1 className="font-display italic text-ink leading-tight" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{isUA ? 'Підтвердьте email' : 'Check your email'}</h1>
+        <p className="mt-4 text-[14px] leading-relaxed text-ink/55">{isUA ? 'Щоб перейти до онбордингу, підтвердьте адресу з листа, надісланого на' : 'Verify your address using the link we sent before continuing to onboarding.'}</p>
+        {user.email && <p className="mt-1 break-all text-[14px] font-semibold text-ink">{user.email}</p>}
+        {error && <p role="alert" className="mt-5 rounded-2xl bg-[#fff0eb] px-4 py-3 text-[12px] font-medium text-[#b74339]">{error}</p>}
+        {notice && <p role="status" className="mt-5 rounded-2xl bg-[#edf5ee] px-4 py-3 text-[12px] font-medium text-[#3f6748]">{notice}</p>}
+        <button type="button" onClick={() => void checkVerification()} disabled={loading} className="mt-7 w-full h-12 bg-coral text-white text-[14px] font-bold rounded-full hover:bg-[#e54d49] disabled:cursor-wait disabled:opacity-60">
+          {loading ? (isUA ? 'Перевіряємо…' : 'Checking…') : (isUA ? 'Я підтвердив email' : 'I verified my email')}
+        </button>
+        <button type="button" onClick={() => void resendVerification()} disabled={loading} className="mt-3 w-full h-11 rounded-full bg-[#f3efeb] px-5 text-[13px] font-semibold text-ink hover:bg-[#ece4df] disabled:opacity-60">
+          {isUA ? 'Надіслати лист ще раз' : 'Resend email'}
+        </button>
+        <button type="button" onClick={() => void useAnotherAccount()} disabled={loading} className="mt-2 h-11 px-5 text-[13px] font-semibold text-ink/55 hover:text-ink disabled:opacity-60">
+          {isUA ? 'Використати інший акаунт' : 'Use another account'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ProductRoute({ lang }: { lang: Lang }) {
+  const [authReady, setAuthReady] = useState(false)
+  const [unverifiedUser, setUnverifiedUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    const applyUser = (user: User | null) => {
+      const usesPassword = user?.providerData.some((provider) => provider.providerId === 'password')
+      setUnverifiedUser(user && usesPassword && !user.emailVerified ? user : null)
+      setAuthReady(true)
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, applyUser)
+    const refreshOnFocus = async () => {
+      if (!auth.currentUser) return
+      try {
+        await reload(auth.currentUser)
+        applyUser(auth.currentUser)
+      } catch {
+        // The gate remains in place if the verification status cannot be refreshed.
+      }
+    }
+    window.addEventListener('focus', refreshOnFocus)
+    return () => {
+      unsubscribe()
+      window.removeEventListener('focus', refreshOnFocus)
+    }
+  }, [])
+
+  if (!authReady) {
+    return (
+      <div className="min-h-screen bg-ivory flex items-center justify-center" aria-label={lang === 'ua' ? 'Завантаження' : 'Loading'}>
+        <img src={aiBlob} alt="" className="h-16 w-16 animate-pulse object-contain" />
+      </div>
+    )
+  }
+
+  if (unverifiedUser) return <EmailVerificationGate user={unverifiedUser} lang={lang} />
+  return <VisualLab />
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 type Page = 'landing' | 'auth'
@@ -1253,7 +1380,7 @@ export default function App() {
   const pathname = window.location.pathname.replace(/\/$/, '')
 
   if (pathname === '/design-lab') {
-    return <VisualLab />
+    return <ProductRoute lang={lang} />
   }
   if (pathname === '/auth/verify') return <EmailLinkCallback lang={lang} />
   if (pathname === '/auth/email-verified') return <EmailVerificationCallback lang={lang} />
