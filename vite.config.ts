@@ -212,7 +212,7 @@ export default {
     if (url.pathname === '/api/transcribe') return transcribe(request, env)
     const response = await env.ASSETS.fetch(request)
     if (response.status !== 404) return response
-    return env.ASSETS.fetch(new Request(new URL('/index.html', request.url), request))
+    return env.ASSETS.fetch(new Request(new URL('/', request.url), request))
   },
 }\n`
       const workerDirectory = path.resolve(root, 'dist/server')
