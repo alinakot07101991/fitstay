@@ -1,4 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import {
+  FacebookAuthProvider,
+  GoogleAuthProvider,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  signInWithPopup,
+  updateProfile,
+  type AuthProvider,
+} from 'firebase/auth'
 import hotelPhoto from '@/imports/ChatGPT_Image_Aug_24__2026__03_55_28_PM.png'
 import tripIllustration from '@/imports/ChatGPT_Image_Aug_24__2026__03_57_19_PM.png'
 import hotelIllustration from '@/imports/ChatGPT_Image_Aug_24__2026__04_00_22_PM_1.png'
@@ -9,6 +18,8 @@ import riskFlagIcon from '@/imports/icon_flag_2_.png'
 import insightsIcon from '@/imports/icon_magnifying_glass.png'
 import alternativesIcon from '@/imports/icon_arrow_clean.png'
 import VisualLab from './VisualLab'
+import { auth } from './firebase'
+import { emailForSignInKey, pendingNameKey, sendMagicSignInLink } from './emailLinkAuth'
 // v2
 
 type Lang = 'en' | 'ua'
@@ -811,171 +822,241 @@ function Footer({ tx }: { tx: Tx }) {
 
 type AuthMode = 'login' | 'register'
 
+function authErrorCode(authError: unknown) {
+  return typeof authError === 'object' && authError && 'code' in authError
+    ? String(authError.code)
+    : ''
+}
+
+function authErrorMessage(authError: unknown, isUA: boolean) {
+  const code = authErrorCode(authError)
+  if (code === 'auth/invalid-email') return isUA ? 'Введіть коректний email.' : 'Enter a valid email address.'
+  if (code === 'auth/too-many-requests') return isUA ? 'Забагато спроб. Спробуйте пізніше.' : 'Too many attempts. Please try again later.'
+  if (code === 'auth/network-request-failed') return isUA ? 'Перевірте інтернет-з’єднання та спробуйте ще раз.' : 'Check your internet connection and try again.'
+  if (code === 'auth/operation-not-allowed') return isUA ? 'Email Link ще не ввімкнений у Firebase.' : 'Email Link sign-in is not enabled in Firebase yet.'
+  if (code === 'auth/unauthorized-domain') return isUA ? 'Цей домен ще не додано до Authorized domains у Firebase.' : 'This domain is not listed in Firebase Authorized domains yet.'
+  if (code === 'auth/popup-blocked') return isUA ? 'Браузер заблокував вікно входу. Дозвольте спливні вікна та повторіть спробу.' : 'The browser blocked the sign-in window. Allow pop-ups and try again.'
+  if (code === 'auth/account-exists-with-different-credential') return isUA ? 'Цей email прив’язаний до іншого способу входу.' : 'This email uses a different sign-in method.'
+  if (code === 'auth/popup-closed-by-user') return isUA ? 'Вхід було скасовано.' : 'Sign-in was cancelled.'
+  return isUA ? 'Не вдалося завершити дію. Спробуйте ще раз.' : 'We could not complete that action. Please try again.'
+}
+
 function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [ageConfirmed, setAgeConfirmed] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [sentEmail, setSentEmail] = useState('')
 
   useEffect(() => { window.scrollTo(0, 0) }, [])
 
   const isUA = lang === 'ua'
-  const copy = {
-    login: {
-      title: isUA ? 'Увійти до fitstay.' : 'Sign in to fitstay.',
-      sub: isUA ? 'Продовжте — ваш перший аналіз готелю безкоштовний.' : 'Continue — your first hotel analysis is free.',
-      google: isUA ? 'Увійти через Google' : 'Continue with Google',
-      facebook: isUA ? 'Увійти через Facebook' : 'Continue with Facebook',
-      or: isUA ? 'або через email' : 'or with email',
-      emailLabel: 'Email',
-      emailPlaceholder: isUA ? 'ваш@email.com' : 'your@email.com',
-      passwordLabel: isUA ? 'Пароль' : 'Password',
-      passwordPlaceholder: isUA ? 'Ваш пароль' : 'Your password',
-      submit: isUA ? 'Увійти' : 'Sign in',
-      switchText: isUA ? 'Ще немає акаунту?' : "Don't have an account?",
-      switchCta: isUA ? 'Зареєструватися' : 'Create one',
-      forgot: isUA ? 'Забули пароль?' : 'Forgot password?',
-    },
-    register: {
-      title: isUA ? 'Створити акаунт' : 'Create your account',
-      sub: isUA ? 'Почніть безкоштовно — 2 перевірки готелів включено.' : 'Start free — 2 hotel checks included.',
-      google: isUA ? 'Зареєструватися через Google' : 'Continue with Google',
-      facebook: isUA ? 'Зареєструватися через Facebook' : 'Continue with Facebook',
-      or: isUA ? 'або через email' : 'or with email',
-      nameLabel: isUA ? "Ім'я" : 'Name',
-      namePlaceholder: isUA ? "Ваше ім'я" : 'Your name',
-      emailLabel: 'Email',
-      emailPlaceholder: isUA ? 'ваш@email.com' : 'your@email.com',
-      passwordLabel: isUA ? 'Пароль' : 'Password',
-      passwordPlaceholder: isUA ? 'Мінімум 8 символів' : 'At least 8 characters',
-      submit: isUA ? 'Створити акаунт' : 'Create account',
-      switchText: isUA ? 'Вже є акаунт?' : 'Already have an account?',
-      switchCta: isUA ? 'Увійти' : 'Sign in',
-      terms: isUA
-        ? 'Реєструючись, ви погоджуєтесь з умовами використання та політикою конфіденційності.'
-        : 'By creating an account you agree to our Terms of Service and Privacy Policy.',
-    },
-  }
-  const c = mode === 'login' ? copy.login : copy.register
+  const isRegister = mode === 'register'
+  const title = isRegister ? (isUA ? 'Створити акаунт' : 'Create your account') : (isUA ? 'Увійти до fitstay.' : 'Sign in to fitstay.')
+  const sub = isRegister
+    ? (isUA ? 'Почніть безкоштовно — 2 перевірки готелів включено.' : 'Start free — 2 hotel checks included.')
+    : (isUA ? 'Ми надішлемо безпечне посилання для входу на ваш email.' : 'We’ll email you a secure magic link to sign in.')
 
-  const SocialBtn = ({ icon, label }: { icon: 'google' | 'facebook'; label: string }) => (
-    <button className="w-full h-12 flex items-center justify-center gap-3 bg-white border border-ink/10 rounded-full text-[14px] font-medium font-sans text-ink hover:bg-ivory transition-colors">
-      {icon === 'google' && (
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
-          <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
-          <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-          <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-        </svg>
-      )}
-      {icon === 'facebook' && (
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect width="18" height="18" rx="9" fill="#1877F2"/>
-          <path d="M12.5 9H10.5V15H8V9H6.5V7H8V5.5C8 4.12 8.88 3 10.5 3H12.5V5H11C10.72 5 10.5 5.22 10.5 5.5V7H12.5L12.5 9Z" fill="white"/>
-        </svg>
-      )}
-      {label}
-    </button>
-  )
+  const sendEmailLink = async (isResend = false) => {
+    setError('')
+    setNotice('')
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setError(isUA ? 'Введіть коректний email.' : 'Enter a valid email address.')
+      return
+    }
+    if (isRegister && name.trim().length < 2) {
+      setError(isUA ? 'Введіть ваше ім’я.' : 'Enter your name.')
+      return
+    }
+    if (isRegister && !ageConfirmed) {
+      setError(isUA ? 'Підтвердьте, що вам виповнилося 18 років.' : 'Confirm that you are at least 18 years old.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const normalizedEmail = await sendMagicSignInLink(email)
+      if (isRegister) window.localStorage.setItem(pendingNameKey, name.trim())
+      setEmail(normalizedEmail)
+      setSentEmail(normalizedEmail)
+      if (isResend) setNotice(isUA ? 'Нове посилання надіслано.' : 'A new sign-in link was sent.')
+    } catch (authError) {
+      setError(authErrorMessage(authError, isUA))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSocialAuth = async (provider: AuthProvider) => {
+    setError('')
+    if (isRegister && !ageConfirmed) {
+      setError(isUA ? 'Підтвердьте, що вам виповнилося 18 років.' : 'Confirm that you are at least 18 years old.')
+      return
+    }
+    setLoading(true)
+    try {
+      await signInWithPopup(auth, provider)
+      window.location.assign('/design-lab?preview=onboarding')
+    } catch (authError) {
+      setError(authErrorMessage(authError, isUA))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const changeEmail = () => {
+    setSentEmail('')
+    setNotice('')
+    setError('')
+    window.setTimeout(() => document.getElementById('auth-email')?.focus(), 0)
+  }
 
   return (
     <div className="min-h-screen bg-ivory font-sans flex flex-col relative">
-      <button
-        type="button"
-        onClick={onBack}
-        className="absolute top-5 left-4 sm:left-6 inline-flex items-center gap-2 text-[13px] font-medium text-ink/55 hover:text-ink transition-colors"
-        aria-label={isUA ? 'Повернутися на головну' : 'Back to home'}
-      >
-        <span aria-hidden="true">←</span>
-        <Logo />
+      <button type="button" onClick={onBack} className="absolute top-5 left-4 sm:left-6 inline-flex items-center gap-2 text-[13px] font-medium text-ink/55 hover:text-ink transition-colors" aria-label={isUA ? 'Повернутися на головну' : 'Back to home'}>
+        <span aria-hidden="true">←</span><Logo />
       </button>
-      {/* Content */}
       <div className="flex-1 flex items-center justify-center px-6 py-16">
         <div className="w-full max-w-[400px]">
-          {/* Blob */}
           <img src={aiBlob} alt="" className="w-24 h-24 object-contain mb-8 mx-auto" />
 
-          <h1 className="font-display italic text-ink leading-tight mb-6 text-center" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>
-            {c.title}
-          </h1>
-
-          {/* Social buttons */}
-          <div className="space-y-3 mb-6">
-            <SocialBtn icon="google" label={c.google} />
-            <SocialBtn icon="facebook" label={c.facebook} />
-          </div>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="flex-1 h-px bg-ink/10" />
-            <span className="text-[12px] text-ink/35 font-sans">{c.or}</span>
-            <div className="flex-1 h-px bg-ink/10" />
-          </div>
-
-          {/* Form */}
-          <form onSubmit={(e) => e.preventDefault()} className="space-y-3">
-            {mode === 'register' && (
-              <div>
-                <label className="block text-[12px] font-medium font-sans text-ink/50 mb-1.5">{'nameLabel' in c ? c.nameLabel : ''}</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={'namePlaceholder' in c ? c.namePlaceholder : ''}
-                  className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] font-sans text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30 transition-colors"
-                />
-              </div>
-            )}
-            <div>
-              <label className="block text-[12px] font-medium font-sans text-ink/50 mb-1.5">{c.emailLabel}</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={c.emailPlaceholder}
-                className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] font-sans text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30 transition-colors"
-              />
+          {sentEmail ? (
+            <div className="text-center" aria-live="polite">
+              <h1 className="font-display italic text-ink leading-tight" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{isUA ? 'Перевірте пошту' : 'Check your email'}</h1>
+              <p className="mt-4 text-[14px] leading-relaxed text-ink/55">{isUA ? 'Ми надіслали посилання для входу на' : 'We sent a magic sign-in link to'}</p>
+              <p className="mt-1 break-all text-[14px] font-semibold text-ink">{sentEmail}</p>
+              <p className="mt-4 text-[12px] leading-relaxed text-ink/40">{isUA ? 'Відкрийте посилання в листі, щоб продовжити.' : 'Open the link in the email to continue.'}</p>
+              {error && <p role="alert" className="mt-5 rounded-2xl bg-[#fff0eb] px-4 py-3 text-[12px] font-medium text-[#b74339]">{error}</p>}
+              {notice && <p role="status" className="mt-5 rounded-2xl bg-[#edf5ee] px-4 py-3 text-[12px] font-medium text-[#3f6748]">{notice}</p>}
+              <button type="button" onClick={() => void sendEmailLink(true)} disabled={loading} className="mt-7 w-full h-12 bg-coral text-white text-[14px] font-bold rounded-full hover:bg-[#e54d49] disabled:cursor-wait disabled:opacity-60">
+                {loading ? (isUA ? 'Надсилаємо…' : 'Sending…') : (isUA ? 'Надіслати ще раз' : 'Resend email')}
+              </button>
+              <button type="button" onClick={changeEmail} disabled={loading} className="mt-3 h-11 px-5 text-[13px] font-semibold text-ink/55 hover:text-ink disabled:opacity-60">
+                {isUA ? 'Змінити email' : 'Change email'}
+              </button>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-[12px] font-medium font-sans text-ink/50">{c.passwordLabel}</label>
-                {mode === 'login' && (
-                  <button type="button" className="text-[12px] font-sans text-ink/40 hover:text-ink transition-colors">
-                    {'forgot' in c ? c.forgot : ''}
-                  </button>
+          ) : (
+            <>
+              <h1 className="font-display italic text-ink leading-tight mb-3 text-center" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{title}</h1>
+              <p className="mb-7 text-center text-[14px] leading-relaxed text-ink/50">{sub}</p>
+
+              <div className="space-y-3 mb-6">
+                <button type="button" onClick={() => void handleSocialAuth(new GoogleAuthProvider())} disabled={loading} className="w-full h-12 flex items-center justify-center gap-3 bg-white border border-ink/10 rounded-full text-[14px] font-medium text-ink hover:bg-ivory disabled:opacity-60">Continue with Google</button>
+                <button type="button" onClick={() => void handleSocialAuth(new FacebookAuthProvider())} disabled={loading} className="w-full h-12 flex items-center justify-center gap-3 bg-white border border-ink/10 rounded-full text-[14px] font-medium text-ink hover:bg-ivory disabled:opacity-60">Continue with Facebook</button>
+              </div>
+              <div className="flex items-center gap-3 mb-6"><div className="flex-1 h-px bg-ink/10"/><span className="text-[12px] text-ink/35">{isUA ? 'або через email' : 'or with email'}</span><div className="flex-1 h-px bg-ink/10"/></div>
+
+              <form onSubmit={(event) => { event.preventDefault(); void sendEmailLink() }} className="space-y-3">
+                {isRegister && (
+                  <div>
+                    <label className="block text-[12px] font-medium text-ink/50 mb-1.5">{isUA ? "Ім'я" : 'Name'}</label>
+                    <input type="text" value={name} onChange={(event) => setName(event.target.value)} required placeholder={isUA ? "Ваше ім'я" : 'Your name'} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
+                  </div>
                 )}
-              </div>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={c.passwordPlaceholder}
-                className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] font-sans text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30 transition-colors"
-              />
-            </div>
+                <div>
+                  <label htmlFor="auth-email" className="block text-[12px] font-medium text-ink/50 mb-1.5">Email</label>
+                  <input id="auth-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); if (error) setError('') }} required placeholder={isUA ? 'ваш@email.com' : 'your@email.com'} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
+                </div>
+                {isRegister && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl px-1 py-2 text-[12px] leading-relaxed text-ink/55">
+                    <input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} className="mt-0.5 size-4 accent-[#f06455]" />
+                    <span>{isUA ? 'Підтверджую, що мені виповнилося 18 років.' : 'I confirm that I am at least 18 years old.'}</span>
+                  </label>
+                )}
+                {error && <p role="alert" className="rounded-2xl bg-[#fff0eb] px-4 py-3 text-[12px] font-medium text-[#b74339]">{error}</p>}
+                <button type="submit" disabled={loading} className="w-full h-12 bg-coral text-white text-[14px] font-bold rounded-full hover:bg-[#e54d49] disabled:cursor-wait disabled:opacity-60">
+                  {loading ? (isUA ? 'Надсилаємо…' : 'Sending…') : (isUA ? 'Продовжити' : 'Continue')}
+                </button>
+              </form>
 
-            <button
-              type="submit"
-              className="w-full h-12 bg-coral text-white text-[14px] font-bold font-sans rounded-full hover:bg-[#e54d49] transition-colors mt-1"
-            >
-              {c.submit}
-            </button>
-          </form>
-
-          {/* Switch mode */}
-          <p className="text-center text-[13px] font-sans text-ink/40 mt-6">
-            {c.switchText}{' '}
-            <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-ink font-medium hover:text-coral transition-colors">
-              {c.switchCta}
-            </button>
-          </p>
-
-          {mode === 'register' && (
-            <p className="text-center text-[12px] font-sans text-ink/30 mt-5 leading-relaxed">
-              {'terms' in c ? c.terms : ''}
-            </p>
+              <p className="text-center text-[13px] text-ink/40 mt-6">
+                {isRegister ? (isUA ? 'Вже є акаунт?' : 'Already have an account?') : (isUA ? 'Ще немає акаунту?' : "Don't have an account?")}{' '}
+                <button type="button" onClick={() => { setMode(isRegister ? 'login' : 'register'); setError(''); setNotice('') }} className="text-ink font-medium hover:text-coral">{isRegister ? (isUA ? 'Увійти' : 'Sign in') : (isUA ? 'Зареєструватися' : 'Create one')}</button>
+              </p>
+              {isRegister && <p className="text-center text-[12px] text-ink/30 mt-5 leading-relaxed">{isUA ? 'Продовжуючи, ви погоджуєтесь з умовами використання та політикою конфіденційності.' : 'By continuing you agree to our Terms of Service and Privacy Policy.'}</p>}
+            </>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+type EmailLinkState = 'loading' | 'cross-device' | 'invalid' | 'expired' | 'error' | 'success'
+
+function EmailLinkCallback({ lang }: { lang: Lang }) {
+  const [state, setState] = useState<EmailLinkState>('loading')
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
+  const completingRef = useRef(false)
+  const isUA = lang === 'ua'
+
+  const completeSignIn = async (emailAddress: string) => {
+    if (completingRef.current) return
+    completingRef.current = true
+    setState('loading')
+    setMessage('')
+    try {
+      const credential = await signInWithEmailLink(auth, emailAddress.trim().toLocaleLowerCase(), window.location.href)
+      const pendingName = window.localStorage.getItem(pendingNameKey)
+      if (pendingName && !credential.user.displayName) await updateProfile(credential.user, { displayName: pendingName })
+      window.localStorage.removeItem(emailForSignInKey)
+      window.localStorage.removeItem(pendingNameKey)
+      setState('success')
+      window.setTimeout(() => window.location.replace('/design-lab?preview=onboarding'), 900)
+    } catch (authError) {
+      const code = authErrorCode(authError)
+      if (code === 'auth/expired-action-code') setState('expired')
+      else if (code === 'auth/invalid-action-code' || code === 'auth/invalid-email') setState('invalid')
+      else {
+        setState('error')
+        setMessage(authErrorMessage(authError, isUA))
+      }
+      completingRef.current = false
+    }
+  }
+
+  useEffect(() => {
+    if (!isSignInWithEmailLink(auth, window.location.href)) {
+      setState('invalid')
+      return
+    }
+    const storedEmail = window.localStorage.getItem(emailForSignInKey)
+    if (storedEmail) void completeSignIn(storedEmail)
+    else setState('cross-device')
+  }, [])
+
+  const title = state === 'loading' ? (isUA ? 'Входимо…' : 'Signing you in…')
+    : state === 'cross-device' ? (isUA ? 'Підтвердьте email' : 'Confirm your email')
+      : state === 'success' ? (isUA ? 'Готово' : 'You’re signed in')
+        : state === 'expired' ? (isUA ? 'Посилання застаріло' : 'This link has expired')
+          : state === 'invalid' ? (isUA ? 'Недійсне посилання' : 'Invalid sign-in link')
+            : (isUA ? 'Не вдалося увійти' : 'Could not sign in')
+
+  return (
+    <div className="min-h-screen bg-ivory font-sans flex items-center justify-center px-6 py-16">
+      <div className="w-full max-w-[400px] text-center">
+        <img src={aiBlob} alt="" className="w-24 h-24 object-contain mb-8 mx-auto" />
+        <h1 className="font-display italic text-ink leading-tight" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{title}</h1>
+        {state === 'loading' && <p className="mt-4 text-[14px] text-ink/50">{isUA ? 'Перевіряємо безпечне посилання.' : 'Checking your secure sign-in link.'}</p>}
+        {state === 'success' && <p role="status" className="mt-4 text-[14px] text-ink/50">{isUA ? 'Переходимо до налаштування профілю.' : 'Taking you to profile setup.'}</p>}
+        {state === 'cross-device' && (
+          <form onSubmit={(event) => { event.preventDefault(); void completeSignIn(email) }} className="mt-7 text-left">
+            <p className="mb-5 text-center text-[14px] leading-relaxed text-ink/50">{isUA ? 'Посилання відкрито в іншому браузері або на іншому пристрої. Введіть email, на який ми його надіслали.' : 'This link was opened in another browser or on another device. Enter the email address that received it.'}</p>
+            <label htmlFor="callback-email" className="mb-1.5 block text-[12px] font-medium text-ink/50">Email</label>
+            <input id="callback-email" autoFocus type="email" inputMode="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="your@email.com" className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
+            <button type="submit" className="mt-3 w-full h-12 bg-coral text-white text-[14px] font-bold rounded-full hover:bg-[#e54d49]">{isUA ? 'Продовжити' : 'Continue'}</button>
+          </form>
+        )}
+        {(state === 'invalid' || state === 'expired' || state === 'error') && (
+          <div className="mt-5">
+            <p role="alert" className="text-[14px] leading-relaxed text-ink/50">{message || (state === 'expired' ? (isUA ? 'Запросіть нове посилання для входу.' : 'Request a new sign-in link.') : (isUA ? 'Це посилання неможливо використати. Запросіть нове.' : 'This link cannot be used. Request a new one.'))}</p>
+            <a href="/?auth=1" className="mt-7 inline-flex h-12 items-center justify-center rounded-full bg-coral px-7 text-[14px] font-bold text-white hover:bg-[#e54d49]">{isUA ? 'Надіслати нове посилання' : 'Send a new link'}</a>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -987,12 +1068,14 @@ type Page = 'landing' | 'auth'
 
 export default function App() {
   const [lang, setLang] = useState<Lang>('en')
-  const [page, setPage] = useState<Page>('landing')
+  const [page, setPage] = useState<Page>(() => new URLSearchParams(window.location.search).get('auth') === '1' ? 'auth' : 'landing')
   const tx = T[lang]
+  const pathname = window.location.pathname.replace(/\/$/, '')
 
-  if (window.location.pathname.replace(/\/$/, '') === '/design-lab') {
+  if (pathname === '/design-lab') {
     return <VisualLab />
   }
+  if (pathname === '/auth/verify') return <EmailLinkCallback lang={lang} />
 
   const goAuth = () => { setPage('auth'); window.scrollTo(0, 0) }
   const goBack = () => { setPage('landing'); window.scrollTo(0, 0) }

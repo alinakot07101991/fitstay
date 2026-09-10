@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { onAuthStateChanged } from "firebase/auth"
 import {
   Bookmark,
   ChevronRight,
@@ -26,6 +27,16 @@ import baliImage from "@/imports/destination-bali.png"
 import barcelonaImage from "@/imports/destination-barcelona.png"
 import maldivesImage from "@/imports/destination-maldives.png"
 import pragueImage from "@/imports/destination-prague.png"
+import { auth } from "./firebase"
+import {
+  createHotelCheckRecord,
+  loadHotelChecks,
+  markLatestDraftChecked,
+  readLocalHotelChecks,
+  saveHotelCheck,
+  upsertLocalHotelCheck,
+  type HotelCheckRecord,
+} from "./hotelCheckStore"
 
 type Viewport = "desktop" | "tablet" | "mobile"
 type ScreenId = "signup" | "verify" | "onboarding" | "home" | "home-draft" | "home-history" | "identify" | "ambiguous" | "not-found" | "paywall" | "analysis" | "preliminary" | "result" | "no-data" | "failed" | "alternative" | "alternative-result" | "profile" | "saved" | "settings" | "help"
@@ -43,14 +54,44 @@ const defaultDraftHotel: HotelOption = {
 const DraftContext = createContext<{
   hasDraft: boolean
   draftHotel: HotelOption | null
+  hotelChecks: HotelCheckRecord[]
   createDraft: (hotel: HotelOption) => void
   resolveDraft: () => void
 }>({
   hasDraft: false,
   draftHotel: null,
+  hotelChecks: [],
   createDraft: () => {},
   resolveDraft: () => {},
 })
+
+const destinationImages: Record<string, string> = {
+  "Gennadi Grand Resort": rhodesImage,
+  "The Apurva Kempinski Bali": baliImage,
+  "Hotel Neri Relais & Châteaux": barcelonaImage,
+  "Baros Maldives": maldivesImage,
+  "Hotel Josef": pragueImage,
+  "Mitsis Rinela Beach Resort & Spa": rhodesImage,
+  "Hilton London Metropole": barcelonaImage,
+  "Hilton Bali Resort": baliImage,
+  "Hilton Hawaiian Village": maldivesImage,
+  "Hilton Dubai Palm Jumeirah": rhodesImage,
+  "Hilton Tokyo": pragueImage,
+}
+
+function historyEntryFromRecord(record: HotelCheckRecord): HistoryEntry {
+  return [
+    record.place,
+    record.hotel,
+    new Intl.DateTimeFormat("en", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(record.updatedAt)),
+    destinationImages[record.hotel] || rhodesImage,
+    record.status === "draft" ? "Draft" : undefined,
+  ]
+}
 
 const groups: Array<{
   label: string
@@ -60,7 +101,7 @@ const groups: Array<{
     label: "Account",
     items: [
       ["signup", "Create account", "Authentication"],
-      ["verify", "Verify email", "Email/password"],
+      ["verify", "Check your email", "Passwordless link"],
       ["onboarding", "Onboarding", "Minimum profile"],
     ],
   },
@@ -167,7 +208,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
     </section>
   )
 }
-function Field({ label, value }: { label: string value: string }) {
+function Field({ label, value }: { label: string; value: string }) {
   return (
     <label className="block">
       <span className="mb-2 block text-[12px] font-semibold">{label}</span>
@@ -342,7 +383,7 @@ function History({
   state: HistoryState
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
-  const { draftHotel } = useContext(DraftContext)
+  const { draftHotel, hotelChecks } = useContext(DraftContext)
   const history: HistoryEntry[] = [
     ["Rhodes, Greece", "Gennadi Grand Resort", "May 20, 2026", rhodesImage],
     ["Bali, Indonesia", "The Apurva Kempinski Bali", "May 18, 2026", baliImage],
@@ -351,9 +392,15 @@ function History({
     ["Prague, Czechia", "Hotel Josef", "May 10, 2026", pragueImage],
   ]
   const currentDraft = draftHotel || defaultDraftHotel
-  const draftEntry: HistoryEntry = [currentDraft.place, currentDraft.hotel, "Sep 10, 2026", currentDraft.image || rhodesImage, "Draft"]
+  const savedDraftRecord = hotelChecks.find((record) => record.status === "draft")
+  const draftEntry: HistoryEntry = savedDraftRecord
+    ? historyEntryFromRecord(savedDraftRecord)
+    : [currentDraft.place, currentDraft.hotel, "Sep 10, 2026", currentDraft.image || rhodesImage, "Draft"]
   const activeEntry: HistoryEntry = ["Rhodes, Greece", "Gennadi Grand Resort", "Sep 10, 2026", rhodesImage]
-  const visibleHistory: HistoryEntry[] = state === "draft"
+  const storedHistory = hotelChecks.map(historyEntryFromRecord)
+  const visibleHistory: HistoryEntry[] = state === "empty" && storedHistory.length > 0
+    ? storedHistory
+    : state === "draft"
     ? [draftEntry]
     : state === "history-with-draft"
       ? [draftEntry, ...history]
@@ -372,7 +419,7 @@ function History({
         <button onClick={() => go("home")} className="sidebar-action sidebar-action--check group flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[12px] font-semibold transition-colors duration-200 hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb] focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><span className="interactive-icon-surface sidebar-action-icon grid size-7 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]"><Icon name="checkSpark" size={14}/></span>Check hotel</button>
         <button onClick={() => go("saved")} className="sidebar-action sidebar-action--saved group flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[12px] font-semibold transition-colors duration-200 hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb] focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><span className="interactive-icon-surface sidebar-action-icon grid size-7 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]"><Icon name="bookmark" size={14}/></span>Saved hotels</button>
       </nav>
-      {state === "empty" ? (
+      {visibleHistory.length === 0 ? (
         <EmptyHistory />
       ) : (
         <div className="space-y-1 px-4 pb-6 pt-5">
@@ -402,7 +449,7 @@ function History({
     </aside>
       {searchOpen && (
         <SearchHistoryModal
-          state={state}
+          state={visibleHistory.length === 0 ? "empty" : state === "empty" ? "history" : state}
           items={visibleHistory}
           go={go}
           onClose={() => setSearchOpen(false)}
@@ -881,16 +928,16 @@ function Account({
       <Centered viewport={viewport}>
         <Card>
           <Brand />
-          <h1 className="mt-8 text-[29px] font-bold">Check your inbox</h1>
+          <h1 className="mt-8 text-[29px] font-bold">Check your email</h1>
           <p className="mt-3 text-[14px] text-[#777169]">
-            We sent a verification link to olivia@example.com. Verify your email
-            to continue.
+            We sent a magic sign-in link to olivia@example.com.
           </p>
           <div className="mt-7">
             <Button primary full onClick={() => go("onboarding")}>
-              I verified my email
+              Resend email
             </Button>
           </div>
+          <button className="mt-3 min-h-11 w-full text-[12px] font-semibold text-[#777169]">Change email</button>
         </Card>
       </Centered>
     )
@@ -940,14 +987,13 @@ function Account({
           <Button full>Continue with Google</Button>
           <Button full>Continue with Facebook</Button>
           <Field label="Email" value="you@example.com" />
-          <Field label="Password" value="At least 8 characters" />
         </div>
         <label className="mt-5 flex gap-3 text-[12px]">
           <input type="checkbox" /> I confirm that I am 18 or older.
         </label>
         <div className="mt-6">
           <Button primary full onClick={() => go("verify")}>
-            Create account
+            Continue
           </Button>
         </div>
       </Card>
@@ -1068,7 +1114,7 @@ function State({
   )
 }
 
-function Paywall({ viewport, go }: { viewport: Viewport go: Go }) {
+function Paywall({ viewport, go }: { viewport: Viewport; go: Go }) {
   return (
     <Shell viewport={viewport} go={go}>
       <div className="mx-auto max-w-[760px]">
@@ -1107,7 +1153,7 @@ function Paywall({ viewport, go }: { viewport: Viewport go: Go }) {
     </Shell>
   )
 }
-function Analysis({ viewport, go }: { viewport: Viewport go: Go }) {
+function Analysis({ viewport, go }: { viewport: Viewport; go: Go }) {
   const [open, setOpen] = useState(true)
   return (
     <Shell viewport={viewport} go={go} historyState="active">
@@ -1151,7 +1197,7 @@ function Analysis({ viewport, go }: { viewport: Viewport go: Go }) {
     </Shell>
   )
 }
-function Result({ viewport, go }: { viewport: Viewport go: Go }) {
+function Result({ viewport, go }: { viewport: Viewport; go: Go }) {
   const cats = [
     ["Room & comfort", "88", "Checked 3 of 3"],
     ["Food & service", "91", "Checked 2 of 2"],
@@ -1305,7 +1351,7 @@ function Alternative({
     </Shell>
   )
 }
-function Profile({ viewport, go }: { viewport: Viewport go: Go }) {
+function Profile({ viewport, go }: { viewport: Viewport; go: Go }) {
   return (
     <Shell viewport={viewport} go={go}>
       <div className="mx-auto max-w-[800px]">
@@ -1354,7 +1400,7 @@ function Profile({ viewport, go }: { viewport: Viewport go: Go }) {
 
 function UtilityPage({ screen, viewport, go }: { screen: "saved" | "settings" | "help"; viewport: Viewport; go: Go }) {
   if (screen === "saved") return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[820px]"><h1 className="text-[30px] font-bold">Saved hotels</h1><p className="mt-2 text-[12px] text-[#7b756e]">Hotels saved with a specific result version.</p><div className="mt-6 grid gap-4">{[["Gennadi Grand Resort","Rhodes, Greece","82% Match",rhodesImage],["Baros Maldives","Maldives","Saved result",maldivesImage]].map(([hotel,place,status,image])=><button key={hotel} onClick={()=>go("result")} className="flex items-center gap-4 rounded-[24px] border border-[#e2ddd6] bg-white p-4 text-left hover:border-[#bcb5ad] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><img src={image} alt="" className="size-16 rounded-2xl object-cover"/><span className="flex-1"><b className="block text-[14px]">{hotel}</b><span className="mt-1 block text-[12px] text-[#7b756e]">{place}</span></span><span className="text-[12px] font-semibold text-[#477555]">{status}</span></button>)}</div></div></Shell>
-  if (screen === "settings") return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[760px]"><h1 className="text-[30px] font-bold">Settings</h1><div className="mt-6 space-y-4"><Card><h2 className="font-bold">Account</h2><div className="mt-5 space-y-4"><Field label="Name" value="Olivia"/><Field label="Email" value="olivia@example.com"/><Field label="Sign-in method" value="Email and password"/></div></Card><Card><h2 className="font-bold">Notifications</h2><label className="mt-5 flex items-center justify-between text-[12px]"><span>In-app check updates</span><input type="checkbox" defaultChecked/></label><label className="mt-4 flex items-center justify-between text-[12px]"><span>Email check updates</span><input type="checkbox"/></label></Card></div></div></Shell>
+  if (screen === "settings") return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[760px]"><h1 className="text-[30px] font-bold">Settings</h1><div className="mt-6 space-y-4"><Card><h2 className="font-bold">Account</h2><div className="mt-5 space-y-4"><Field label="Name" value="Olivia"/><Field label="Email" value="olivia@example.com"/><Field label="Sign-in method" value="Email magic link"/></div></Card><Card><h2 className="font-bold">Notifications</h2><label className="mt-5 flex items-center justify-between text-[12px]"><span>In-app check updates</span><input type="checkbox" defaultChecked/></label><label className="mt-4 flex items-center justify-between text-[12px]"><span>Email check updates</span><input type="checkbox"/></label></Card></div></div></Shell>
   return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[760px]"><h1 className="text-[30px] font-bold">Help & Support</h1><p className="mt-2 text-[12px] text-[#7b756e]">Find answers or contact support about a specific check.</p><div className="mt-6 space-y-4"><Card><h2 className="font-bold">How can we help?</h2><div className="mt-5 space-y-2">{["Understanding your result","Credits and payments","Report incorrect information","Account access"].map(item=><button key={item} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-[#e2ddd6] px-4 text-left text-[12px] font-semibold hover:bg-[#f7f4ef] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50">{item}<Icon name="arrow"/></button>)}</div><div className="mt-6"><Button primary>Contact support</Button></div></Card></div></div></Shell>
 }
 
@@ -1397,18 +1443,41 @@ export default function VisualLab() {
   )
   const viewportForWidth = (width: number): Viewport =>
     width < 600 ? "mobile" : width < 1024 ? "tablet" : "desktop"
-  const [screen, setScreen] = useState<ScreenId>(requestedScreen || "home"),
-    [viewport, setViewport] = useState<Viewport>(() =>
-      cleanPreview ? viewportForWidth(window.innerWidth) : "desktop",
-    ),
-    [draftHotel, setDraftHotel] = useState<HotelOption | null>(
-      requestedScreen === "home-draft" ? defaultDraftHotel : null,
-    ),
-    [homeInstance, setHomeInstance] = useState(0)
+  const [screen, setScreen] = useState<ScreenId>(requestedScreen || "home")
+  const [viewport, setViewport] = useState<Viewport>(() =>
+    cleanPreview ? viewportForWidth(window.innerWidth) : "desktop",
+  )
+  const [hotelChecks, setHotelChecks] = useState<HotelCheckRecord[]>(readLocalHotelChecks)
+  const [draftHotel, setDraftHotel] = useState<HotelOption | null>(() => {
+    if (requestedScreen === "home-draft") return defaultDraftHotel
+    const storedDraft = hotelChecks.find((record) => record.status === "draft")
+    return storedDraft
+      ? {
+          place: storedDraft.place,
+          hotel: storedDraft.hotel,
+          image: destinationImages[storedDraft.hotel],
+        }
+      : null
+  })
+  const [homeInstance, setHomeInstance] = useState(0)
 
   const navigate: Go = (id) => {
     if (id === "home") setHomeInstance((current) => current + 1)
     setScreen(id)
+  }
+
+  const createDraft = (hotel: HotelOption) => {
+    const record = createHotelCheckRecord(hotel)
+    setDraftHotel(hotel)
+    setHotelChecks(upsertLocalHotelCheck(record))
+    void saveHotelCheck(record)
+  }
+
+  const resolveDraft = () => {
+    const result = markLatestDraftChecked(hotelChecks)
+    setHotelChecks(result.records)
+    setDraftHotel(null)
+    if (result.updatedRecord) void saveHotelCheck(result.updatedRecord)
   }
 
   const preview = (
@@ -1416,8 +1485,9 @@ export default function VisualLab() {
       value={{
         hasDraft: Boolean(draftHotel),
         draftHotel,
-        createDraft: (hotel) => setDraftHotel(hotel),
-        resolveDraft: () => setDraftHotel(null),
+        hotelChecks,
+        createDraft,
+        resolveDraft,
       }}
     >
       <Preview
@@ -1435,6 +1505,30 @@ export default function VisualLab() {
     window.addEventListener("resize", updateViewport)
     return () => window.removeEventListener("resize", updateViewport)
   }, [cleanPreview])
+
+  useEffect(() => {
+    let active = true
+    const unsubscribe = onAuthStateChanged(auth, () => {
+      void loadHotelChecks().then((records) => {
+        if (!active) return
+        setHotelChecks(records)
+        const storedDraft = records.find((record) => record.status === "draft")
+        setDraftHotel(
+          storedDraft
+            ? {
+                place: storedDraft.place,
+                hotel: storedDraft.hotel,
+                image: destinationImages[storedDraft.hotel],
+              }
+            : null,
+        )
+      })
+    })
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
 
   if (cleanPreview) {
     return (
