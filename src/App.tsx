@@ -872,7 +872,7 @@ function authErrorMessage(authError: unknown, isUA: boolean) {
   if (code === 'auth/invalid-email') return isUA ? 'Введіть коректний email.' : 'Enter a valid email address.'
   if (code === 'auth/email-already-in-use') return isUA ? 'Акаунт із цим email уже існує. Увійдіть до нього.' : 'An account with this email already exists. Log in instead.'
   if (code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password') return isUA ? 'Неправильний email або пароль.' : 'Incorrect email or password.'
-  if (code === 'auth/weak-password') return isUA ? 'Пароль має містити щонайменше 6 символів.' : 'Password must be at least 6 characters.'
+  if (code === 'auth/weak-password') return isUA ? 'Пароль має містити щонайменше 8 символів, одну велику літеру та одну цифру.' : 'Password must contain at least 8 characters, 1 uppercase letter, and 1 number.'
   if (code === 'auth/missing-password') return isUA ? 'Введіть пароль.' : 'Enter your password.'
   if (code === 'auth/too-many-requests') return isUA ? 'Забагато спроб. Спробуйте пізніше.' : 'Too many attempts. Please try again later.'
   if (code === 'auth/network-request-failed') return isUA ? 'Перевірте інтернет-з’єднання та спробуйте ще раз.' : 'Check your internet connection and try again.'
@@ -932,8 +932,14 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
       setError(isUA ? 'Підтвердьте, що вам виповнилося 18 років.' : 'Confirm that you are at least 18 years old.')
       return
     }
-    if (password.length < 6) {
-      setError(isUA ? 'Пароль має містити щонайменше 6 символів.' : 'Password must be at least 6 characters.')
+    if (!password) {
+      setError(isUA ? 'Введіть пароль.' : 'Enter your password.')
+      return
+    }
+    const hasUppercaseLetter = /[A-ZА-ЯЁЇІЄҐ]/.test(password)
+    const hasNumber = /\d/.test(password)
+    if (isRegister && (password.length < 8 || !hasUppercaseLetter || !hasNumber)) {
+      setError(isUA ? 'Пароль має містити щонайменше 8 символів, одну велику літеру та одну цифру.' : 'Password must contain at least 8 characters, 1 uppercase letter, and 1 number.')
       return
     }
 
@@ -1058,20 +1064,21 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
                 {isRegister && (
                   <div>
                     <label className="block text-[12px] font-medium text-ink/50 mb-1.5">{isUA ? "Ім'я" : 'Name'}</label>
-                    <input type="text" value={name} onChange={(event) => setName(event.target.value)} required placeholder={isUA ? "Ваше ім'я" : 'Your name'} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
+                    <input type="text" value={name} onChange={(event) => setName(event.target.value)} required placeholder={isUA ? "Введіть ваше ім'я" : 'Enter your name'} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
                   </div>
                 )}
                 <div>
                   <label htmlFor="auth-email" className="block text-[12px] font-medium text-ink/50 mb-1.5">Email</label>
-                  <input id="auth-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); if (error) setError('') }} required placeholder={isUA ? 'ваш@email.com' : 'your@email.com'} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
+                  <input id="auth-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); if (error) setError('') }} required placeholder={isUA ? 'Введіть email-адресу' : 'Enter an email address'} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
                 </div>
                 <div>
                   <label htmlFor="auth-password" className="block text-[12px] font-medium text-ink/50 mb-1.5">{isUA ? 'Пароль' : 'Password'}</label>
-                  <input id="auth-password" type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} value={password} onChange={(event) => { setPassword(event.target.value); if (error) setError('') }} required minLength={6} placeholder={isUA ? 'Щонайменше 6 символів' : 'At least 6 characters'} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
+                  <input id="auth-password" type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} value={password} onChange={(event) => { setPassword(event.target.value); if (error) setError('') }} required minLength={isRegister ? 8 : 1} aria-describedby={isRegister ? 'password-requirements' : undefined} placeholder={isRegister ? (isUA ? 'Створіть пароль' : 'Create a password') : (isUA ? 'Введіть пароль' : 'Enter a password')} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
+                  {isRegister && <p id="password-requirements" className="mt-2 px-1 text-[12px] leading-relaxed text-ink/45">{isUA ? 'Щонайменше 8 символів, 1 велика літера та 1 цифра.' : 'At least 8 characters, 1 uppercase letter, and 1 number.'}</p>}
                 </div>
                 {isRegister && (
-                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl px-1 py-2 text-[12px] leading-relaxed text-ink/55">
-                    <input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} className="mt-0.5 size-4 accent-[#f06455]" />
+                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl px-1 py-2 text-[14px] leading-relaxed text-ink/55">
+                    <input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[#f06455]" />
                     <span>{isUA ? 'Підтверджую, що мені виповнилося 18 років.' : 'I confirm that I am at least 18 years old.'}</span>
                   </label>
                 )}
