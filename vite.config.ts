@@ -1,4 +1,4 @@
-import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type HtmlTagDescriptor, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
@@ -9,6 +9,7 @@ import siteConfiguration from './.figma/make/site.json'
 export default defineConfig(({ mode }) => {
   // .figma/make/deploy-preview passes `--mode development` for cached-preview builds.
   const emitSourcemaps = mode === 'development'
+  const environment = loadEnv(mode, process.cwd(), '')
 
   return {
     base: process.env.FIGMA_PUBLIC_URL ? `${process.env.FIGMA_PUBLIC_URL}/` : '/',
@@ -19,6 +20,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      groqTranscriptionDev(environment.GROQ_API_KEY),
       sitesStaticWorker(),
       figmaSiteConfiguration(siteConfiguration),
       figmaErrorOverlayReplay(),
@@ -43,7 +45,100 @@ export default defineConfig(({ mode }) => {
   }
 })
 
-/** Emits the Cloudflare Worker entrypoint required by Sites for this static SPA. */
+const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
+const GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024
+const MAX_MULTIPART_BYTES = MAX_AUDIO_BYTES + 1024 * 1024
+
+/** Proxies local transcription requests without exposing the Groq key to browser code. */
+function groqTranscriptionDev(apiKey?: string): Plugin {
+  return {
+    name: 'groq-transcription-dev',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/api/transcribe', async (req, res) => {
+        const sendJson = (status: number, payload: object) => {
+          res.statusCode = status
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify(payload))
+        }
+
+        if (req.method !== 'POST') {
+          res.setHeader('Allow', 'POST')
+          sendJson(405, { error: 'Method not allowed.' })
+          return
+        }
+        if (!apiKey) {
+          sendJson(503, { error: 'Voice transcription is not configured yet.' })
+          return
+        }
+        const contentType = req.headers['content-type'] || ''
+        if (!contentType.toLowerCase().startsWith('multipart/form-data')) {
+          sendJson(400, { error: 'A recorded audio file is required.' })
+          return
+        }
+
+        try {
+          const chunks: Buffer[] = []
+          let receivedBytes = 0
+          for await (const chunk of req) {
+            const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+            receivedBytes += buffer.length
+            if (receivedBytes > MAX_MULTIPART_BYTES) {
+              sendJson(413, { error: 'The recording is too large. Please record a shorter message.' })
+              return
+            }
+            chunks.push(buffer)
+          }
+
+          const incomingRequest = new Request('http://localhost/api/transcribe', {
+            method: 'POST',
+            headers: { 'content-type': contentType },
+            body: new Uint8Array(Buffer.concat(chunks)),
+          })
+          const incomingForm = await incomingRequest.formData()
+          const audio = incomingForm.get('file')
+          if (!(audio instanceof Blob) || audio.size === 0) {
+            sendJson(400, { error: 'No audio was recorded. Please try again.' })
+            return
+          }
+          if (audio.size > MAX_AUDIO_BYTES) {
+            sendJson(413, { error: 'The recording is too large. Please record a shorter message.' })
+            return
+          }
+
+          const groqForm = new FormData()
+          const fileName = audio instanceof File && audio.name ? audio.name : 'fitstay-recording.webm'
+          groqForm.append('file', audio, fileName)
+          groqForm.append('model', GROQ_TRANSCRIPTION_MODEL)
+          groqForm.append('response_format', 'json')
+
+          const groqResponse = await fetch(GROQ_TRANSCRIPTION_ENDPOINT, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${apiKey}` },
+            body: groqForm,
+          })
+          if (!groqResponse.ok) {
+            sendJson(502, { error: 'We couldn’t transcribe the recording. Please try again.' })
+            return
+          }
+
+          const payload = await groqResponse.json() as { text?: unknown }
+          const text = typeof payload.text === 'string' ? payload.text.trim() : ''
+          if (!text) {
+            sendJson(422, { error: 'No speech was detected. Please try recording again.' })
+            return
+          }
+          sendJson(200, { text })
+        } catch {
+          sendJson(502, { error: 'A network error interrupted transcription. Please try again.' })
+        }
+      })
+    },
+  }
+}
+
+/** Emits the Cloudflare Worker entrypoint required by Sites, including the private Groq proxy. */
 function sitesStaticWorker(): Plugin {
   return {
     name: 'sites-static-worker',
@@ -51,8 +146,64 @@ function sitesStaticWorker(): Plugin {
       this.emitFile({
         type: 'asset',
         fileName: 'server/index.js',
-        source: `export default {
+        source: `const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
+const GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024
+
+function json(payload, status = 200, extraHeaders = {}) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', ...extraHeaders },
+  })
+}
+
+async function transcribe(request, env) {
+  if (request.method !== 'POST') {
+    return json({ error: 'Method not allowed.' }, 405, { Allow: 'POST' })
+  }
+  if (!env.GROQ_API_KEY) {
+    return json({ error: 'Voice transcription is not configured yet.' }, 503)
+  }
+
+  try {
+    const incomingForm = await request.formData()
+    const audio = incomingForm.get('file')
+    if (!(audio instanceof File) || audio.size === 0) {
+      return json({ error: 'No audio was recorded. Please try again.' }, 400)
+    }
+    if (audio.size > MAX_AUDIO_BYTES) {
+      return json({ error: 'The recording is too large. Please record a shorter message.' }, 413)
+    }
+
+    const groqForm = new FormData()
+    groqForm.append('file', audio, audio.name || 'fitstay-recording.webm')
+    groqForm.append('model', GROQ_TRANSCRIPTION_MODEL)
+    groqForm.append('response_format', 'json')
+
+    const groqResponse = await fetch(GROQ_TRANSCRIPTION_ENDPOINT, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY },
+      body: groqForm,
+    })
+    if (!groqResponse.ok) {
+      return json({ error: 'We couldn’t transcribe the recording. Please try again.' }, 502)
+    }
+
+    const payload = await groqResponse.json()
+    const text = typeof payload.text === 'string' ? payload.text.trim() : ''
+    if (!text) {
+      return json({ error: 'No speech was detected. Please try recording again.' }, 422)
+    }
+    return json({ text })
+  } catch {
+    return json({ error: 'A network error interrupted transcription. Please try again.' }, 502)
+  }
+}
+
+export default {
   async fetch(request, env) {
+    const url = new URL(request.url)
+    if (url.pathname === '/api/transcribe') return transcribe(request, env)
     const response = await env.ASSETS.fetch(request)
     if (response.status !== 404) return response
     return env.ASSETS.fetch(new Request(new URL('/index.html', request.url), request))

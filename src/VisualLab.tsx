@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { onAuthStateChanged } from "firebase/auth"
 import {
   Bookmark,
@@ -10,11 +10,13 @@ import {
   Hotel,
   Menu,
   Mic,
+  LoaderCircle,
   PanelLeft,
   Plane,
   Plus,
   Search,
   Settings,
+  Square,
   Sparkles,
   ArrowUp,
   Users,
@@ -28,6 +30,7 @@ import barcelonaImage from "@/imports/destination-barcelona.png"
 import maldivesImage from "@/imports/destination-maldives.png"
 import pragueImage from "@/imports/destination-prague.png"
 import { auth } from "./firebase"
+import { useVoiceTranscription } from "./useVoiceTranscription"
 import {
   createHotelCheckRecord,
   loadHotelChecks,
@@ -43,7 +46,7 @@ type ScreenId = "signup" | "verify" | "onboarding" | "home" | "home-draft" | "ho
 type HistoryState = "empty" | "draft" | "history" | "history-with-draft" | "active"
 type HistoryEntry = [string, string, string, string, string?]
 type Go = (id: ScreenId) => void
-type HotelOption = { place: string; hotel: string; image?: string }
+type HotelOption = { place: string; hotel: string; image?: string; domains?: string[] }
 
 const defaultDraftHotel: HotelOption = {
   place: "Rhodes, Greece",
@@ -163,7 +166,9 @@ const icons: Record<string, LucideIcon> = {
   search: Search,
   bookmark: Bookmark,
   microphone: Mic,
+  loader: LoaderCircle,
   send: ArrowUp,
+  stop: Square,
   users: Users,
   dog: Dog,
   cup: Coffee,
@@ -561,11 +566,22 @@ type HotelLookup =
 
 const hotelCatalog: HotelOption[] = [
   defaultDraftHotel,
+  {
+    place: "Lindos, Rhodes, Greece",
+    hotel: "Lindos Grand Resort & Spa",
+    image: rhodesImage,
+    domains: ["lindosgrand.com"],
+  },
   { place: "Bali, Indonesia", hotel: "The Apurva Kempinski Bali", image: baliImage },
   { place: "Barcelona, Spain", hotel: "Hotel Neri Relais & Châteaux", image: barcelonaImage },
   { place: "Maldives", hotel: "Baros Maldives", image: maldivesImage },
   { place: "Prague, Czechia", hotel: "Hotel Josef", image: pragueImage },
   { place: "Crete, Greece", hotel: "Mitsis Rinela Beach Resort & Spa", image: rhodesImage },
+  { place: "Crete, Greece", hotel: "Mitsis Selection Laguna", image: rhodesImage },
+  { place: "Kos, Greece", hotel: "Mitsis Selection Blue Domes", image: maldivesImage },
+  { place: "Kos, Greece", hotel: "Mitsis Norida", image: baliImage },
+  { place: "Rhodes, Greece", hotel: "Mitsis Selection Alila", image: rhodesImage },
+  { place: "Rhodes, Greece", hotel: "Mitsis Rodos Village", image: barcelonaImage },
   { place: "London, United Kingdom", hotel: "Hilton London Metropole", image: barcelonaImage },
   { place: "Bali, Indonesia", hotel: "Hilton Bali Resort", image: baliImage },
   { place: "Honolulu, USA", hotel: "Hilton Hawaiian Village", image: maldivesImage },
@@ -584,7 +600,7 @@ function Home({
 }) {
   const hotelInputRef = useRef<HTMLInputElement>(null)
   const composerInputRef = useRef<HTMLInputElement>(null)
-  const { createDraft, resolveDraft } = useContext(DraftContext)
+  const { createDraft, resolveDraft, hotelChecks } = useContext(DraftContext)
   const [inputValue, setInputValue] = useState("")
   const [composerValue, setComposerValue] = useState("")
   const [chatMessages, setChatMessages] = useState<string[]>([])
@@ -594,6 +610,34 @@ function Home({
   const [candidates, setCandidates] = useState<HotelOption[]>([])
   const [templateModal, setTemplateModal] = useState(false)
   const [identifiedHotel, setIdentifiedHotel] = useState<HotelOption | null>(null)
+  const insertTranscription = useCallback((text: string) => {
+    setComposerValue((current) => current.trim() ? `${current.trim()} ${text}` : text)
+    window.setTimeout(() => composerInputRef.current?.focus(), 0)
+  }, [])
+  const voiceInput = useVoiceTranscription(insertTranscription)
+
+  const existingCheckFor = (hotel: HotelOption) => {
+    const normalizedHotel = hotel.hotel.trim().toLocaleLowerCase()
+    return hotelChecks.find(
+      (record) => record.hotel.trim().toLocaleLowerCase() === normalizedHotel,
+    )
+  }
+
+  const openExistingCheck = (hotel: HotelOption) => {
+    const existingCheck = existingCheckFor(hotel)
+    if (!existingCheck) return false
+
+    setPendingLookup(null)
+    setCandidates([])
+    setIdentifiedHotel(hotel)
+    if (existingCheck.status === "draft") {
+      setChatMessages([])
+      setChatStage("confirmation")
+    } else {
+      go("result")
+    }
+    return true
+  }
 
   useEffect(() => {
     if (chatStage !== "processing" || !pendingLookup) return
@@ -617,14 +661,37 @@ function Home({
     const normalized = value.trim().toLocaleLowerCase()
     const isLink = /^(https?:\/\/|www\.)\S+/i.test(value.trim())
     if (isLink) {
-      const host = value.trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0]
-      return { kind: "identified", hotel: { place: host, hotel: "Hotel identified from submitted link" } }
+      const linkValue = /^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`
+      try {
+        const url = new URL(linkValue)
+        const host = url.hostname.toLocaleLowerCase().replace(/^www\./, "")
+        const domainMatch = hotelCatalog.find((item) =>
+          item.domains?.some((domain) => host === domain || host.endsWith(`.${domain}`)),
+        )
+        if (domainMatch) return { kind: "identified", hotel: domainMatch }
+
+        const linkTerms = decodeURIComponent(`${url.hostname} ${url.pathname}`)
+          .toLocaleLowerCase()
+          .split(/[^\p{L}\p{N}]+/u)
+          .filter((term) => term.length > 2)
+        const pathMatches = hotelCatalog.filter((item) => {
+          const hotelTerms = item.hotel
+            .toLocaleLowerCase()
+            .split(/[^\p{L}\p{N}]+/u)
+            .filter((term) => term.length > 3 && !["hotel", "resort"].includes(term))
+          return hotelTerms.length > 0 && hotelTerms.every((term) => linkTerms.includes(term))
+        })
+        if (pathMatches.length === 1) return { kind: "identified", hotel: pathMatches[0] }
+      } catch {
+        return { kind: "none" }
+      }
+      return { kind: "none" }
     }
 
     const exact = hotelCatalog.find((item) => item.hotel.toLocaleLowerCase() === normalized)
     if (exact) return { kind: "identified", hotel: exact }
 
-    const genericChain = /^(hilton|marriott|hyatt|radisson|sheraton)(?: hotels?)?$/.test(normalized)
+    const genericChain = /^(hilton|marriott|hyatt|mitsis|radisson|sheraton)(?: hotels?)?$/.test(normalized)
     if (genericChain) return { kind: "clarify" }
 
     const genericWords = new Set(["hotel", "hotels", "resort", "resorts", "spa", "the"])
@@ -635,17 +702,22 @@ function Home({
       const searchable = `${item.hotel} ${item.place}`.toLocaleLowerCase()
       return terms.every((term) => searchable.includes(term))
     })
-    return matches.length > 0 ? { kind: "matches", hotels: matches } : { kind: "none" }
+    if (matches.length === 0) return { kind: "none" }
+    if (matches.length === 1) return { kind: "identified", hotel: matches[0] }
+    if (matches.length > 4) return { kind: "clarify" }
+    return { kind: "matches", hotels: matches }
   }
 
   const runSearch = (value: string) => {
     const query = value.trim()
     if (!query) return
+    const lookup = findHotels(query)
+    if (lookup.kind === "identified" && openExistingCheck(lookup.hotel)) return
     setError("")
     setChatMessages((messages) => [...messages, query])
     setIdentifiedHotel(null)
     setCandidates([])
-    setPendingLookup(findHotels(query))
+    setPendingLookup(lookup)
     setChatStage("processing")
   }
 
@@ -666,6 +738,7 @@ function Home({
   }
 
   const chooseHotel = (hotel: HotelOption) => {
+    if (openExistingCheck(hotel)) return
     setIdentifiedHotel(hotel)
     createDraft(hotel)
     setChatStage("confirmation")
@@ -734,7 +807,7 @@ function Home({
             <div className="min-h-0 flex-1 overflow-y-auto pb-6">
               {chatMessages.map((message, index) => (
                 <div key={`${message}-${index}`} className={`${index === 0 ? "" : "mt-4"} flex justify-end`}>
-                  <div className="max-w-[78%] rounded-[22px] rounded-br-md bg-[#f3f0eb] px-5 py-3 text-[14px] leading-relaxed">
+                  <div className="max-w-[78%] overflow-hidden rounded-[22px] rounded-br-md bg-[#f3f0eb] px-5 py-3 text-[14px] leading-relaxed [overflow-wrap:anywhere]">
                     {message}
                   </div>
                 </div>
@@ -742,7 +815,7 @@ function Home({
 
               {chatStage === "processing" && (
                 <div className="mt-8" aria-live="polite">
-                  <p className="text-[14px] font-semibold">Finding matching hotels</p>
+                  <p className="text-[14px]">Finding matching hotels</p>
                   <p className="mt-2 text-[12px] text-[#817a73]">Checking names, destinations, and hotel links…</p>
                   <img src={aiBlob} alt="" className="animate-thinking-blob mt-4 size-11 object-contain" />
                 </div>
@@ -750,7 +823,7 @@ function Home({
 
               {chatStage === "matches" && (
                 <div className="mt-7" aria-live="polite">
-                  <p className="text-[14px] font-semibold">Choose the hotel you mean</p>
+                  <p className="text-[14px]">Choose the hotel you mean</p>
                   <p className="mt-2 text-[12px] text-[#817a73]">I found these matches across different destinations.</p>
                   <div className="mt-4 space-y-2">
                     {candidates.map((hotel) => (
@@ -777,28 +850,28 @@ function Home({
 
               {chatStage === "clarify" && (
                 <div className="mt-7" aria-live="polite">
-                  <p className="text-[14px] font-semibold">Please narrow down your search</p>
+                  <p className="text-[14px]">Please narrow down your search</p>
                   <p className="mt-2 max-w-[580px] text-[14px] leading-relaxed text-[#817a73]">That hotel chain has many properties. Enter the full hotel name, add a destination, or paste a hotel link.</p>
                 </div>
               )}
 
               {chatStage === "none" && (
                 <div className="mt-7" aria-live="polite">
-                  <p className="text-[14px] font-semibold">No matching hotels found</p>
+                  <p className="text-[14px]">No matching hotels found</p>
                   <p className="mt-2 text-[14px] text-[#817a73]">Try another word, a destination, the full hotel name, or a hotel link.</p>
                 </div>
               )}
 
               {chatStage === "awaiting-input" && (
                 <div className="mt-7" aria-live="polite">
-                  <p className="text-[14px] font-semibold">Enter another hotel</p>
+                  <p className="text-[14px]">Enter another hotel</p>
                   <p className="mt-2 text-[14px] text-[#817a73]">You can use a hotel name, destination, partial phrase, or link.</p>
                 </div>
               )}
 
               {chatStage === "confirmation" && identifiedHotel && (
                 <div className="mt-7" aria-live="polite">
-                  <p className="text-[14px] font-semibold">I found this hotel. Is this the one you meant?</p>
+                  <p className="text-[14px]">I found this hotel. Is this the one you meant?</p>
                   <div className="mt-4 flex items-center gap-4 rounded-[22px] border border-[#e2ddd6] bg-[#faf9f7] p-4">
                     {identifiedHotel.image ? (
                       <img src={identifiedHotel.image} alt="" className="size-16 shrink-0 rounded-2xl object-cover" />
@@ -820,16 +893,60 @@ function Home({
             </div>
 
             <form onSubmit={submitChatMessage} className="mt-auto border-t border-[#ebe7e1] pt-4">
-              <div className="interactive-field flex min-h-14 items-center gap-3 rounded-[22px] bg-[#f3f0eb] px-3 pl-5">
-                <input
-                  ref={composerInputRef}
-                  value={composerValue}
-                  onChange={(event) => setComposerValue(event.target.value)}
-                  aria-label="Continue chat"
-                  placeholder="Enter a hotel, destination, or message…"
-                  className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#8b847c]"
-                />
-                {composerValue.trim() ? (
+              <div className={`interactive-field flex min-h-14 items-center gap-3 rounded-[22px] bg-[#f3f0eb] px-3 pl-5 ${voiceInput.status === "recording" ? "ring-2 ring-[#f06455]/35" : ""}`}>
+                {voiceInput.status === "recording" ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-3 text-[14px]" role="status" aria-live="polite">
+                    <span className="relative flex size-3">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#f06455] opacity-40" />
+                      <span className="relative inline-flex size-3 rounded-full bg-[#f06455]" />
+                    </span>
+                    <span>Recording…</span>
+                  </div>
+                ) : voiceInput.status === "requesting" ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-2 text-[14px] text-[#817a73]" role="status" aria-live="polite">
+                    <span>Connecting to microphone…</span>
+                  </div>
+                ) : voiceInput.status === "transcribing" ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-2 text-[14px] text-[#817a73]" role="status" aria-live="polite">
+                    <span>Transcribing…</span>
+                  </div>
+                ) : (
+                  <input
+                    ref={composerInputRef}
+                    value={composerValue}
+                    onChange={(event) => {
+                      setComposerValue(event.target.value)
+                      if (voiceInput.message) voiceInput.clearMessage()
+                    }}
+                    aria-label="Continue chat"
+                    placeholder="Enter a hotel, destination, or message…"
+                    className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#8b847c]"
+                  />
+                )}
+                {voiceInput.status === "recording" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={voiceInput.cancelRecording}
+                      aria-label="Cancel recording"
+                      className="grid size-10 shrink-0 place-items-center rounded-full text-[#514b45] hover:bg-[#e7e1da] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+                    >
+                      <Icon name="close" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={voiceInput.stopRecording}
+                      aria-label="Stop recording and transcribe"
+                      className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f06455] text-white hover:bg-[#df5549] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+                    >
+                      <Icon name="stop" size={15} />
+                    </button>
+                  </>
+                ) : voiceInput.status === "requesting" || voiceInput.status === "transcribing" ? (
+                  <span className="grid size-10 shrink-0 place-items-center text-[#817a73]" aria-hidden="true">
+                    <span className="animate-spin"><Icon name="loader" /></span>
+                  </span>
+                ) : composerValue.trim() ? (
                   <button
                     type="submit"
                     data-variant="primary"
@@ -841,6 +958,7 @@ function Home({
                 ) : (
                   <button
                     type="button"
+                    onClick={voiceInput.startRecording}
                     aria-label="Start voice input"
                     className="grid size-10 shrink-0 place-items-center rounded-full text-[#514b45] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
                   >
@@ -848,6 +966,11 @@ function Home({
                   </button>
                 )}
               </div>
+              {voiceInput.message && (
+                <p role="alert" className="mt-2 px-3 text-[12px] text-[#b2473e]">
+                  {voiceInput.message}
+                </p>
+              )}
             </form>
           </div>
         )}
