@@ -36,6 +36,9 @@ import baliImage from "@/imports/destination-bali.png"
 import barcelonaImage from "@/imports/destination-barcelona.png"
 import maldivesImage from "@/imports/destination-maldives.png"
 import pragueImage from "@/imports/destination-prague.png"
+import onboardingTravelersImage from "@/imports/onboarding-travelers-v1.png"
+import onboardingPreferencesImage from "@/imports/onboarding-preferences-v1.png"
+import onboardingPrioritiesImage from "@/imports/onboarding-priorities-v1.png"
 import { auth } from "./firebase"
 import { useVoiceTranscription } from "./useVoiceTranscription"
 import { completeOnboarding } from "./onboardingStore"
@@ -1529,315 +1532,340 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
     ["PREFERENCES", "What matters to you?"],
     ["PRIORITIES", "Set your priorities"],
   ] as const
+  const stepImages = [
+    onboardingTravelersImage,
+    onboardingPreferencesImage,
+    onboardingPrioritiesImage,
+  ]
 
   return (
-    <main className="product-ui grid min-h-screen items-center bg-[#f5f2ed] px-5 py-8 text-[#1c1917]">
-      <div className="mx-auto w-full max-w-[480px]">
-        <div
-          className="grid grid-cols-3 gap-3"
-          aria-label={`Step ${step} of 3`}
-        >
-          {[1, 2, 3].map((segment) => (
-            <span
-              key={segment}
-              className={`h-1.5 rounded-full ${
-                segment <= step ? "bg-[#f75b56]" : "bg-[#dedbd4]"
-              }`}
-            />
-          ))}
-        </div>
-
-        <p className="mt-8 text-[12px] font-medium tracking-[.18em] text-[#aaa59f]">
-          STEP {step} OF 3 · {stepMeta[step - 1][0]}
-        </p>
-        <h1 className="font-display mt-3 text-[32px] font-normal italic leading-[1.12] tracking-[-.035em]">
-          {stepMeta[step - 1][1]}
-        </h1>
-
-        {step === 1 && (
-          <div className="mt-8 space-y-4">
-            <section className="flex min-h-24 items-center justify-between gap-4 rounded-[24px] bg-white p-5">
-              <div>
-                <h2 className="text-[14px] font-semibold">Adults</h2>
-                <p className="mt-1 text-[12px] text-[#aaa59f]">Age 18+</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <StepperButton
-                  label="Decrease"
-                  disabled={adults <= 1}
-                  onClick={() => setAdults((value) => Math.max(1, value - 1))}
-                />
-                <span className="min-w-5 text-center text-[14px] font-medium">
-                  {adults}
-                </span>
-                <StepperButton
-                  label="Increase"
-                  onClick={() => setAdults((value) => value + 1)}
-                />
-              </div>
-            </section>
-
-            <section className="rounded-[24px] bg-white p-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-[14px] font-semibold">Children</h2>
-                  <p className="mt-1 text-[12px] text-[#aaa59f]">Under 18</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setChildren((current) => [...current, 0])}
-                  className="min-h-10 rounded-full px-3 text-[14px] font-semibold text-[#f75b56]"
-                >
-                  + Add child
-                </button>
-              </div>
-              {children.length > 0 && (
-                <div className="mt-5 space-y-4 border-t border-[#eee9e2] pt-5">
-                  {children.map((age, index) => (
-                    <div
-                      key={index}
-                      className="flex flex-wrap items-center justify-between gap-4"
-                    >
-                      <span className="min-w-16 text-[14px] text-[#777169]">
-                        Child {index + 1}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <StepperButton
-                          label={`Decrease age for child ${index + 1}`}
-                          disabled={age <= 0}
-                          onClick={() =>
-                            setChildren((current) =>
-                              current.map((value, childIndex) =>
-                                childIndex === index
-                                  ? Math.max(0, value - 1)
-                                  : value,
-                              ),
-                            )
-                          }
-                        />
-                        <span className="w-24 shrink-0 whitespace-nowrap text-center text-[14px] tabular-nums">
-                          {age === 0
-                            ? "Under 1 year"
-                            : `${age} ${age === 1 ? "year" : "years"}`}
-                        </span>
-                        <StepperButton
-                          label={`Increase age for child ${index + 1}`}
-                          disabled={age >= 17}
-                          onClick={() =>
-                            setChildren((current) =>
-                              current.map((value, childIndex) =>
-                                childIndex === index
-                                  ? Math.min(17, value + 1)
-                                  : value,
-                              ),
-                            )
-                          }
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setChildren((current) =>
-                            current.filter(
-                              (_, childIndex) => childIndex !== index,
-                            ),
-                          )
-                        }
-                        className="min-h-11 rounded-full px-3 text-[14px] text-[#8f8982]"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="flex min-h-24 items-center justify-between gap-4 rounded-[24px] bg-white p-5">
-              <div>
-                <h2 className="text-[14px] font-semibold">
-                  Traveling with pets
-                </h2>
-                <p className="mt-1 text-[12px] text-[#aaa59f]">
-                  Pet policy will be checked
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={travelsWithPets}
-                aria-label="Traveling with pets"
-                onClick={() => setTravelsWithPets((value) => !value)}
-                data-preserve-fill
-                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
-                  travelsWithPets ? "bg-[#f75b56]" : "bg-[#d8d6d2]"
-                }`}
-              >
+    <main className="product-ui min-h-screen bg-[#f5f2ed] p-5 text-[#1c1917]">
+      <div className="grid min-h-[calc(100vh-40px)] w-full gap-5 lg:grid-cols-[minmax(560px,46%)_minmax(0,1fr)]">
+        <section className="flex min-h-[calc(100vh-40px)] min-w-0 items-center py-10 pl-20 pr-10 max-lg:min-h-0 max-lg:px-5 max-lg:py-6">
+          <div className="w-full max-w-[480px] text-left">
+            <div
+              className="grid grid-cols-3 gap-3"
+              aria-label={`Step ${step} of 3`}
+            >
+              {[1, 2, 3].map((segment) => (
                 <span
-                  className={`absolute top-1 left-0 size-5 rounded-full bg-white shadow-sm transition-transform ${
-                    travelsWithPets ? "translate-x-6" : "translate-x-1"
+                  key={segment}
+                  className={`h-1.5 rounded-full ${
+                    segment <= step ? "bg-[#f75b56]" : "bg-[#dedbd4]"
                   }`}
                 />
-              </button>
-            </section>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="mt-3">
-            <p className="text-[14px] text-[#918b84]">
-              Select at least 3 preferences
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2.5">
-              {allPreferences.map((preference) => {
-                const selected = selectedPreferences.includes(preference)
-                return (
-                  <button
-                    key={preference}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => togglePreference(preference)}
-                    data-preserve-fill
-                    className={`min-h-11 rounded-full border px-4 text-[14px] transition ${
-                      selected
-                        ? "border-[#f75b56] bg-[#f75b56] text-white"
-                        : "border-[#d9d5cf] bg-white text-[#625e59] hover:border-[#aaa39a]"
-                    }`}
-                  >
-                    {preference}
-                  </button>
-                )
-              })}
-            </div>
-            <form
-              className="mt-5 flex gap-3"
-              onSubmit={(event) => {
-                event.preventDefault()
-                addCustomPreference()
-              }}
-            >
-              <input
-                value={customPreference}
-                onChange={(event) => setCustomPreference(event.target.value)}
-                placeholder="Add your own preference"
-                aria-label="Add your own preference"
-                className="interactive-field min-h-12 min-w-0 flex-1 rounded-full border border-[#d9d5cf] bg-white px-4 text-[14px] outline-none placeholder:text-[#aaa59f]"
-              />
-              <button
-                type="submit"
-                disabled={!customPreference.trim()}
-                data-preserve-fill
-                className="grid size-12 shrink-0 place-items-center rounded-full bg-[#1c1917] text-white transition hover:bg-[#3b3632] disabled:cursor-not-allowed disabled:opacity-35"
-                aria-label="Add preference"
-              >
-                <Plus size={22} strokeWidth={1.8} />
-              </button>
-            </form>
-            <p
-              className="mt-4 text-[14px] text-[#777169]"
-            >
-              {selectedPreferences.length} selected ·{" "}
-              {hasMinimumPreferences
-                ? "Ready to continue"
-                : `${3 - selectedPreferences.length} more required`}
-            </p>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="mt-3">
-            <p className="text-[14px] leading-relaxed text-[#918b84]">
-              Mark every preference as important or critical
-            </p>
-            <div className="mt-5 space-y-3">
-              {selectedPreferences.map((preference) => (
-                <section
-                  key={preference}
-                  className="flex flex-col gap-4 rounded-[20px] bg-white p-5 md:flex-row md:items-center md:justify-between"
-                >
-                  <h2 className="text-[14px]">{preference}</h2>
-                  <div className="flex flex-wrap gap-3">
-                    {(["important", "critical"] as const).map((priority) => {
-                      const selected = priorities[preference] === priority
-                      return (
-                        <button
-                          key={priority}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() =>
-                            setPriorities((current) => ({
-                              ...current,
-                              [preference]: priority,
-                            }))
-                          }
-                          data-preserve-fill
-                          className={`min-h-10 rounded-full border px-4 text-[14px] font-semibold capitalize transition ${
-                            selected
-                              ? "border-[#f75b56] bg-[#f75b56] text-white"
-                              : "border-[#d9d5cf] bg-white text-[#8f8982] hover:border-[#aaa39a]"
-                          }`}
-                        >
-                          {priority}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </section>
               ))}
             </div>
-            {!allPrioritiesAssigned && (
-              <p className="mt-4 text-[14px] text-[#b4493e]">
-                Choose a priority for every preference
-              </p>
-            )}
-            {saveError && (
-              <p
-                role="alert"
-                className="mt-4 rounded-2xl bg-[#fff0eb] px-5 py-4 text-[14px] text-[#b4493e]"
-              >
-                {saveError}
-              </p>
-            )}
-          </div>
-        )}
 
-        <div
-          className={`mt-8 flex gap-3 ${
-            isMobile ? "flex-col-reverse" : "items-center"
-          }`}
-        >
-          {step > 1 && (
-            <button
-              type="button"
-              onClick={() => setStep((current) => Math.max(1, current - 1))}
-              className={`${
-                isMobile ? "w-full" : "w-32"
-              } min-h-12 rounded-full border border-[#d4cfc7] bg-transparent px-5 text-[14px] font-semibold`}
+            <p className="mt-8 text-[12px] font-medium tracking-[.18em] text-[#aaa59f]">
+              STEP {step} OF 3 · {stepMeta[step - 1][0]}
+            </p>
+            <h1 className="font-display mt-3 text-[32px] font-normal italic leading-[1.12] tracking-[-.035em]">
+              {stepMeta[step - 1][1]}
+            </h1>
+
+            {step === 1 && (
+              <div className="mt-8 space-y-4">
+                <section className="flex min-h-24 items-center justify-between gap-4 rounded-[24px] bg-white p-5">
+                  <div>
+                    <h2 className="text-[14px] font-semibold">Adults</h2>
+                    <p className="mt-1 text-[12px] text-[#aaa59f]">Age 18+</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <StepperButton
+                      label="Decrease"
+                      disabled={adults <= 1}
+                      onClick={() =>
+                        setAdults((value) => Math.max(1, value - 1))
+                      }
+                    />
+                    <span className="min-w-5 text-center text-[14px] font-medium">
+                      {adults}
+                    </span>
+                    <StepperButton
+                      label="Increase"
+                      onClick={() => setAdults((value) => value + 1)}
+                    />
+                  </div>
+                </section>
+
+                <section className="rounded-[24px] bg-white p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-[14px] font-semibold">Children</h2>
+                      <p className="mt-1 text-[12px] text-[#aaa59f]">
+                        Under 18
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setChildren((current) => [...current, 0])}
+                      className="min-h-10 rounded-full px-3 text-[14px] font-semibold text-[#f75b56]"
+                    >
+                      + Add child
+                    </button>
+                  </div>
+                  {children.length > 0 && (
+                    <div className="mt-5 space-y-4 border-t border-[#eee9e2] pt-5">
+                      {children.map((age, index) => (
+                        <div
+                          key={index}
+                          className="flex flex-wrap items-center justify-between gap-4"
+                        >
+                          <span className="min-w-16 text-[14px] text-[#777169]">
+                            Child {index + 1}
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <StepperButton
+                              label={`Decrease age for child ${index + 1}`}
+                              disabled={age <= 0}
+                              onClick={() =>
+                                setChildren((current) =>
+                                  current.map((value, childIndex) =>
+                                    childIndex === index
+                                      ? Math.max(0, value - 1)
+                                      : value,
+                                  ),
+                                )
+                              }
+                            />
+                            <span className="w-24 shrink-0 whitespace-nowrap text-center text-[14px] tabular-nums">
+                              {age === 0
+                                ? "Under 1 year"
+                                : `${age} ${age === 1 ? "year" : "years"}`}
+                            </span>
+                            <StepperButton
+                              label={`Increase age for child ${index + 1}`}
+                              disabled={age >= 17}
+                              onClick={() =>
+                                setChildren((current) =>
+                                  current.map((value, childIndex) =>
+                                    childIndex === index
+                                      ? Math.min(17, value + 1)
+                                      : value,
+                                  ),
+                                )
+                              }
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setChildren((current) =>
+                                current.filter(
+                                  (_, childIndex) => childIndex !== index,
+                                ),
+                              )
+                            }
+                            className="min-h-11 rounded-full px-3 text-[14px] text-[#8f8982]"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="flex min-h-24 items-center justify-between gap-4 rounded-[24px] bg-white p-5">
+                  <div>
+                    <h2 className="text-[14px] font-semibold">
+                      Traveling with pets
+                    </h2>
+                    <p className="mt-1 text-[12px] text-[#aaa59f]">
+                      Pet policy will be checked
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={travelsWithPets}
+                    aria-label="Traveling with pets"
+                    onClick={() => setTravelsWithPets((value) => !value)}
+                    data-preserve-fill
+                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                      travelsWithPets ? "bg-[#f75b56]" : "bg-[#d8d6d2]"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 left-0 size-5 rounded-full bg-white shadow-sm transition-transform ${
+                        travelsWithPets ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </section>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="mt-3">
+                <p className="text-[14px] text-[#918b84]">
+                  Select at least 3 preferences
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2.5">
+                  {allPreferences.map((preference) => {
+                    const selected = selectedPreferences.includes(preference)
+                    return (
+                      <button
+                        key={preference}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => togglePreference(preference)}
+                        data-preserve-fill
+                        className={`min-h-11 rounded-full border px-4 text-[14px] transition ${
+                          selected
+                            ? "border-[#f75b56] bg-[#f75b56] text-white"
+                            : "border-[#d9d5cf] bg-white text-[#625e59] hover:border-[#aaa39a]"
+                        }`}
+                      >
+                        {preference}
+                      </button>
+                    )
+                  })}
+                </div>
+                <form
+                  className="mt-5 flex gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    addCustomPreference()
+                  }}
+                >
+                  <input
+                    value={customPreference}
+                    onChange={(event) =>
+                      setCustomPreference(event.target.value)
+                    }
+                    placeholder="Add your own preference"
+                    aria-label="Add your own preference"
+                    className="interactive-field min-h-12 min-w-0 flex-1 rounded-full border border-[#d9d5cf] bg-white px-4 text-[14px] outline-none placeholder:text-[#aaa59f]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!customPreference.trim()}
+                    data-preserve-fill
+                    className="grid size-12 shrink-0 place-items-center rounded-full bg-[#1c1917] text-white transition hover:bg-[#3b3632] disabled:cursor-not-allowed disabled:opacity-35"
+                    aria-label="Add preference"
+                  >
+                    <Plus size={22} strokeWidth={1.8} />
+                  </button>
+                </form>
+                <p className="mt-4 text-[14px] text-[#777169]">
+                  {selectedPreferences.length} selected ·{" "}
+                  {hasMinimumPreferences
+                    ? "Ready to continue"
+                    : `${3 - selectedPreferences.length} more required`}
+                </p>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="mt-3">
+                <p className="text-[14px] leading-relaxed text-[#918b84]">
+                  Mark every preference as important or critical
+                </p>
+                <div className="mt-5 space-y-3">
+                  {selectedPreferences.map((preference) => (
+                    <section
+                      key={preference}
+                      className="flex flex-col gap-4 rounded-[20px] bg-white p-5 md:flex-row md:items-center md:justify-between"
+                    >
+                      <h2 className="text-[14px]">{preference}</h2>
+                      <div className="flex flex-wrap gap-3">
+                        {(["important", "critical"] as const).map(
+                          (priority) => {
+                            const selected = priorities[preference] === priority
+                            return (
+                              <button
+                                key={priority}
+                                type="button"
+                                aria-pressed={selected}
+                                onClick={() =>
+                                  setPriorities((current) => ({
+                                    ...current,
+                                    [preference]: priority,
+                                  }))
+                                }
+                                data-preserve-fill
+                                className={`min-h-10 rounded-full border px-4 text-[14px] font-semibold capitalize transition ${
+                                  selected
+                                    ? "border-[#f75b56] bg-[#f75b56] text-white"
+                                    : "border-[#d9d5cf] bg-white text-[#8f8982] hover:border-[#aaa39a]"
+                                }`}
+                              >
+                                {priority}
+                              </button>
+                            )
+                          },
+                        )}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+                {!allPrioritiesAssigned && (
+                  <p className="mt-4 text-[14px] text-[#b4493e]">
+                    Choose a priority for every preference
+                  </p>
+                )}
+                {saveError && (
+                  <p
+                    role="alert"
+                    className="mt-4 rounded-2xl bg-[#fff0eb] px-5 py-4 text-[14px] text-[#b4493e]"
+                  >
+                    {saveError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div
+              className={`mt-8 flex gap-3 ${
+                isMobile ? "flex-col-reverse" : "items-center"
+              }`}
             >
-              Back
-            </button>
-          )}
-          <button
-            type="button"
-            data-variant="primary"
-            disabled={
-              isSaving ||
-              (step === 2 && !hasMinimumPreferences) ||
-              (step === 3 && !allPrioritiesAssigned)
-            }
-            onClick={() => {
-              if (step === 1) setStep(2)
-              else if (step === 2 && hasMinimumPreferences) setStep(3)
-              else if (step === 3) void finishOnboarding()
-            }}
-            className="min-h-12 flex-1 rounded-full bg-[#f75b56] px-6 text-[14px] font-semibold text-white transition hover:bg-[#e6534f] disabled:cursor-not-allowed disabled:bg-[#d7d2cb] disabled:text-[#9a948c]"
-          >
-            {isSaving
-              ? "Saving…"
-              : step === 3
-                ? "Start using fitstay"
-                : "Continue"}
-          </button>
+              {step > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setStep((current) => Math.max(1, current - 1))}
+                  className={`${
+                    isMobile ? "w-full" : "w-32"
+                  } min-h-12 rounded-full border border-[#d4cfc7] bg-transparent px-5 text-[14px] font-semibold`}
+                >
+                  Back
+                </button>
+              )}
+              <button
+                type="button"
+                data-variant="primary"
+                disabled={
+                  isSaving ||
+                  (step === 2 && !hasMinimumPreferences) ||
+                  (step === 3 && !allPrioritiesAssigned)
+                }
+                onClick={() => {
+                  if (step === 1) setStep(2)
+                  else if (step === 2 && hasMinimumPreferences) setStep(3)
+                  else if (step === 3) void finishOnboarding()
+                }}
+                className="min-h-12 flex-1 rounded-full bg-[#f75b56] px-6 text-[14px] font-semibold text-white transition hover:bg-[#e6534f] disabled:cursor-not-allowed disabled:bg-[#d7d2cb] disabled:text-[#9a948c]"
+              >
+                {isSaving
+                  ? "Saving…"
+                  : step === 3
+                    ? "Start using fitstay"
+                    : "Continue"}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div className="sticky top-5 h-[calc(100vh-40px)] min-h-[680px] overflow-hidden rounded-[32px] max-lg:static max-lg:h-[420px] max-lg:min-h-0">
+          <img
+            key={step}
+            src={stepImages[step - 1]}
+            alt=""
+            aria-hidden="true"
+            className="h-full w-full object-cover"
+          />
         </div>
       </div>
     </main>
