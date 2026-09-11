@@ -1585,7 +1585,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setChildren((current) => [...current, 8])}
+                  onClick={() => setChildren((current) => [...current, 0])}
                   className="min-h-10 rounded-full px-3 text-[14px] font-semibold text-[#f75b56]"
                 >
                   + Add child
@@ -1615,8 +1615,8 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                             )
                           }
                         />
-                        <span className="min-w-12 text-center text-[14px]">
-                          {age} yrs
+                        <span className="min-w-14 text-center text-[14px]">
+                          {age === 0 ? "Under 1" : `${age} yrs`}
                         </span>
                         <StepperButton
                           label={`Increase age for child ${index + 1}`}
@@ -1672,7 +1672,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                 }`}
               >
                 <span
-                  className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${
+                  className={`absolute top-1 left-0 size-5 rounded-full bg-white shadow-sm transition-transform ${
                     travelsWithPets ? "translate-x-6" : "translate-x-1"
                   }`}
                 />
@@ -1682,7 +1682,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
         )}
 
         {step === 2 && (
-          <div className="mt-5">
+          <div className="mt-3">
             <p className="text-[14px] text-[#918b84]">
               Select at least 3 preferences
             </p>
@@ -1732,9 +1732,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
               </button>
             </form>
             <p
-              className={`mt-4 text-[14px] ${
-                hasMinimumPreferences ? "text-[#777169]" : "text-[#b4493e]"
-              }`}
+              className="mt-4 text-[14px] text-[#777169]"
             >
               {selectedPreferences.length} selected ·{" "}
               {hasMinimumPreferences
@@ -1745,7 +1743,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
         )}
 
         {step === 3 && (
-          <div className="mt-6">
+          <div className="mt-3">
             <p className="text-[14px] leading-relaxed text-[#918b84]">
               Mark every preference as important or critical
             </p>

@@ -1426,7 +1426,6 @@ function ProductRoute({ lang }: { lang: Lang }) {
         return
       }
 
-      setAuthReady(false)
       const completed = await loadOnboardingCompleted(user.uid)
       if (!active) return
 
@@ -1445,7 +1444,7 @@ function ProductRoute({ lang }: { lang: Lang }) {
       void applyUser(user)
     })
     const refreshOnFocus = async () => {
-      if (!auth.currentUser) return
+      if (!auth.currentUser || auth.currentUser.emailVerified) return
       try {
         await reload(auth.currentUser)
         await applyUser(auth.currentUser)
