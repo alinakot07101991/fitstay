@@ -27,6 +27,15 @@
 
 ## Історія
 
+### 2026-09-11 — Інтегровано Tripadvisor Terra reviews API
+
+- Тип: Code / Data / Operations
+- Статус: Погоджено
+- Зміна: додано server-only endpoint для пошуку hotel Location ID у Tripadvisor Terra, виявлення неоднозначних збігів, посторінкового отримання оригінальних відгуків із `language=primary`, нормалізації review data та структурованої обробки 400, 404, 429 і upstream failures. Додано безпечне server-side логування кількості API calls, reviews і pagination pages.
+- Причина: підготувати Tripadvisor review corpus для наступного етапу AI-аналізу без передавання Terra API key у browser code.
+- Артефакти: `server/tripadvisor.js`, `src/tripadvisorReviews.ts`, `vite.config.ts`, `.env.example`, server integration tests і Sites runtime environment.
+- Вплив: AI-аналіз ще не запускається; API повертає hotel identity, Tripadvisor Location ID, кількість і нормалізовані reviews.
+
 ### 2026-09-10 — Додано persistent chat composer і broad hotel lookup
 
 - Тип: Product / UX / UI / Code / Documentation

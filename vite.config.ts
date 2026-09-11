@@ -2,10 +2,11 @@ import { defineConfig, loadEnv, type HtmlTagDescriptor, type Plugin } from 'vite
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { sites } from '@openai/sites-vite-plugin'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
+import { handleTripadvisorHotelReviews } from './server/tripadvisor.js'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -25,6 +26,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       sites(),
       groqTranscriptionDev(environment.GROQ_API_KEY),
+      tripadvisorReviewsDev(environment.TRIPADVISOR_API_KEY),
       sitesStaticWorker(),
       figmaSiteConfiguration(siteConfiguration),
       figmaErrorOverlayReplay(),
@@ -142,7 +144,62 @@ function groqTranscriptionDev(apiKey?: string): Plugin {
   }
 }
 
-/** Emits the Cloudflare Worker entrypoint required by Sites, including the private Groq proxy. */
+const MAX_TRIPADVISOR_REQUEST_BYTES = 16 * 1024
+
+/** Proxies local Tripadvisor review requests without exposing the Terra key to browser code. */
+function tripadvisorReviewsDev(apiKey?: string): Plugin {
+  return {
+    name: 'tripadvisor-reviews-dev',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/api/tripadvisor/reviews', async (req, res) => {
+        const sendResponse = async (response: Response) => {
+          res.statusCode = response.status
+          response.headers.forEach((value, key) => res.setHeader(key, value))
+          res.end(Buffer.from(await response.arrayBuffer()))
+        }
+
+        try {
+          const chunks: Buffer[] = []
+          let receivedBytes = 0
+          for await (const chunk of req) {
+            const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+            receivedBytes += buffer.length
+            if (receivedBytes > MAX_TRIPADVISOR_REQUEST_BYTES) {
+              await sendResponse(new Response(
+                JSON.stringify({ error: { code: 'request_too_large', message: 'Request is too large' } }),
+                { status: 413, headers: { 'Content-Type': 'application/json; charset=utf-8' } },
+              ))
+              return
+            }
+            chunks.push(buffer)
+          }
+
+          const request = new Request('http://localhost/api/tripadvisor/reviews', {
+            method: req.method,
+            headers: { 'content-type': req.headers['content-type'] || 'application/json' },
+            body: req.method === 'GET' || req.method === 'HEAD'
+              ? undefined
+              : new Uint8Array(Buffer.concat(chunks)),
+          })
+          await sendResponse(await handleTripadvisorHotelReviews(request, apiKey))
+        } catch {
+          await sendResponse(new Response(
+            JSON.stringify({
+              error: {
+                code: 'tripadvisor_unavailable',
+                message: 'Tripadvisor reviews are temporarily unavailable',
+              },
+            }),
+            { status: 502, headers: { 'Content-Type': 'application/json; charset=utf-8' } },
+          ))
+        }
+      })
+    },
+  }
+}
+
+/** Emits the Cloudflare Worker entrypoint required by Sites, including private API proxies. */
 function sitesStaticWorker(): Plugin {
   let root = process.cwd()
 
@@ -152,7 +209,9 @@ function sitesStaticWorker(): Plugin {
       root = config.root
     },
     async closeBundle() {
-      const workerSource = `const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
+      const workerSource = `import { handleTripadvisorHotelReviews } from './tripadvisor.js'
+
+const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
 const GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
@@ -210,6 +269,9 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     if (url.pathname === '/api/transcribe') return transcribe(request, env)
+    if (url.pathname === '/api/tripadvisor/reviews') {
+      return handleTripadvisorHotelReviews(request, env.TRIPADVISOR_API_KEY)
+    }
     const response = await env.ASSETS.fetch(request)
     if (response.status !== 404) return response
     return env.ASSETS.fetch(new Request(new URL('/', request.url), request))
@@ -218,6 +280,10 @@ export default {
       const workerDirectory = path.resolve(root, 'dist/server')
       await mkdir(workerDirectory, { recursive: true })
       await writeFile(path.resolve(workerDirectory, 'index.js'), workerSource, 'utf8')
+      await copyFile(
+        path.resolve(root, 'server/tripadvisor.js'),
+        path.resolve(workerDirectory, 'tripadvisor.js'),
+      )
     },
   }
 }
