@@ -1531,8 +1531,8 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
   ] as const
 
   return (
-    <main className="product-ui min-h-[800px] bg-[#f5f2ed] px-5 py-10 text-[#1c1917] md:px-10 md:py-14">
-      <div className="mx-auto w-full max-w-[960px]">
+    <main className="product-ui grid min-h-screen items-center bg-[#f5f2ed] px-5 py-10 text-[#1c1917] md:px-10 md:py-14">
+      <div className="mx-auto w-full max-w-[760px]">
         <div
           className="grid grid-cols-3 gap-3"
           aria-label={`Step ${step} of 3`}
@@ -1811,7 +1811,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
               type="button"
               onClick={() => setStep((current) => Math.max(1, current - 1))}
               className={`${
-                isMobile ? "w-full" : "w-44"
+                isMobile ? "w-full" : "w-32"
               } min-h-16 rounded-full border border-[#d4cfc7] bg-transparent px-7 text-[16px] font-semibold`}
             >
               Back
