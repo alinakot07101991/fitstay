@@ -28,6 +28,7 @@ import alternativesIcon from '@/imports/icon_arrow_clean.png'
 import VisualLab from './VisualLab'
 import { auth } from './firebase'
 import { emailForSignInKey, pendingNameKey } from './emailLinkAuth'
+import { loadOnboardingCompleted } from './onboardingStore'
 // v2
 
 type Lang = 'en' | 'ua'
@@ -1401,26 +1402,60 @@ function EmailVerificationGate({ user, lang }: { user: User; lang: Lang }) {
 function ProductRoute({ lang }: { lang: Lang }) {
   const [authReady, setAuthReady] = useState(false)
   const [unverifiedUser, setUnverifiedUser] = useState<User | null>(null)
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null)
 
   useEffect(() => {
-    const applyUser = (user: User | null) => {
+    let active = true
+
+    const applyUser = async (user: User | null) => {
       const usesPassword = user?.providerData.some((provider) => provider.providerId === 'password')
-      setUnverifiedUser(user && usesPassword && !user.emailVerified ? user : null)
+      const unverified = user && usesPassword && !user.emailVerified ? user : null
+      if (!active) return
+      setUnverifiedUser(unverified)
+
+      if (!user) {
+        setOnboardingCompleted(null)
+        setAuthReady(true)
+        window.location.replace('/?auth=1')
+        return
+      }
+
+      if (unverified) {
+        setOnboardingCompleted(null)
+        setAuthReady(true)
+        return
+      }
+
+      setAuthReady(false)
+      const completed = await loadOnboardingCompleted(user.uid)
+      if (!active) return
+
+      const requestedScreen = new URLSearchParams(window.location.search).get('preview')
+      if (!completed && requestedScreen !== 'onboarding') {
+        window.history.replaceState({}, '', '/design-lab?preview=onboarding')
+      } else if (completed && requestedScreen === 'onboarding') {
+        window.history.replaceState({}, '', '/design-lab?preview=home')
+      }
+
+      setOnboardingCompleted(completed)
       setAuthReady(true)
     }
 
-    const unsubscribe = onAuthStateChanged(auth, applyUser)
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      void applyUser(user)
+    })
     const refreshOnFocus = async () => {
       if (!auth.currentUser) return
       try {
         await reload(auth.currentUser)
-        applyUser(auth.currentUser)
+        await applyUser(auth.currentUser)
       } catch {
         // The gate remains in place if the verification status cannot be refreshed.
       }
     }
     window.addEventListener('focus', refreshOnFocus)
     return () => {
+      active = false
       unsubscribe()
       window.removeEventListener('focus', refreshOnFocus)
     }
@@ -1435,6 +1470,7 @@ function ProductRoute({ lang }: { lang: Lang }) {
   }
 
   if (unverifiedUser) return <EmailVerificationGate user={unverifiedUser} lang={lang} />
+  if (onboardingCompleted === null) return null
   return <VisualLab />
 }
 

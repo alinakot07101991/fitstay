@@ -38,6 +38,7 @@ import maldivesImage from "@/imports/destination-maldives.png"
 import pragueImage from "@/imports/destination-prague.png"
 import { auth } from "./firebase"
 import { useVoiceTranscription } from "./useVoiceTranscription"
+import { completeOnboarding } from "./onboardingStore"
 import {
   createHotelCheckRecord,
   loadHotelChecks,
@@ -1457,6 +1458,8 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
   const [customPreference, setCustomPreference] = useState("")
   const [priorities, setPriorities] =
     useState<Record<string, PreferencePriority>>({})
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState("")
 
   const allPreferences = [...onboardingPreferenceOptions, ...customPreferences]
   const hasMinimumPreferences = selectedPreferences.length >= 3
@@ -1493,11 +1496,13 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
     setCustomPreference("")
   }
 
-  const finishOnboarding = () => {
-    if (!allPrioritiesAssigned) return
-    window.localStorage.setItem(
-      "fitstay.travelerProfile",
-      JSON.stringify({
+  const finishOnboarding = async () => {
+    if (!allPrioritiesAssigned || isSaving) return
+    setIsSaving(true)
+    setSaveError("")
+    try {
+      await completeOnboarding({
+        name: auth.currentUser?.displayName || "",
         adults,
         childAges: children,
         travelsWithPets,
@@ -1506,9 +1511,16 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
           priority: priorities[label],
         })),
         updatedAt: new Date().toISOString(),
-      }),
-    )
-    go("home")
+      })
+      go("home")
+    } catch (error) {
+      console.warn("Onboarding could not be saved", error)
+      setSaveError(
+        "We couldn’t save your profile. Check your connection and try again",
+      )
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const isMobile = viewport === "mobile"
@@ -1778,6 +1790,14 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                 Choose a priority for every preference
               </p>
             )}
+            {saveError && (
+              <p
+                role="alert"
+                className="mt-4 rounded-2xl bg-[#fff0eb] px-5 py-4 text-[14px] text-[#b4493e]"
+              >
+                {saveError}
+              </p>
+            )}
           </div>
         )}
 
@@ -1801,17 +1821,22 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
             type="button"
             data-variant="primary"
             disabled={
+              isSaving ||
               (step === 2 && !hasMinimumPreferences) ||
               (step === 3 && !allPrioritiesAssigned)
             }
             onClick={() => {
               if (step === 1) setStep(2)
               else if (step === 2 && hasMinimumPreferences) setStep(3)
-              else if (step === 3) finishOnboarding()
+              else if (step === 3) void finishOnboarding()
             }}
             className="min-h-16 flex-1 rounded-full bg-[#f75b56] px-8 text-[16px] font-semibold text-white transition hover:bg-[#e6534f] disabled:cursor-not-allowed disabled:bg-[#d7d2cb] disabled:text-[#9a948c]"
           >
-            {step === 3 ? "Start using fitstay" : "Continue"}
+            {isSaving
+              ? "Saving…"
+              : step === 3
+                ? "Start using fitstay"
+                : "Continue"}
           </button>
         </div>
       </div>
