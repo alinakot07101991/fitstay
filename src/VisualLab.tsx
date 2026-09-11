@@ -1,4 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 import { onAuthStateChanged } from "firebase/auth"
 import {
   Bookmark,
@@ -46,7 +53,12 @@ type ScreenId = "signup" | "verify" | "onboarding" | "home" | "home-draft" | "ho
 type HistoryState = "empty" | "draft" | "history" | "history-with-draft" | "active"
 type HistoryEntry = [string, string, string, string, string?]
 type Go = (id: ScreenId) => void
-type HotelOption = { place: string; hotel: string; image?: string; domains?: string[] }
+type HotelOption = {
+  place: string
+  hotel: string
+  image?: string
+  domains?: string[]
+}
 
 const defaultDraftHotel: HotelOption = {
   place: "Rhodes, Greece",
@@ -175,7 +187,7 @@ const icons: Record<string, LucideIcon> = {
   plane: Plane,
 }
 
-function Icon({ name, size = 18 }: { name: string; size?: number }) {
+function Icon({ name, size = 18 }: { name: string size?: number }) {
   const LucideGlyph = icons[name] || ChevronRight
   return <LucideGlyph size={size} strokeWidth={1.7} aria-hidden="true" />
 }
@@ -206,14 +218,22 @@ function Button({
     </button>
   )
 }
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
   return (
-    <section className={`rounded-[30px] border border-[#e2ddd6] bg-white p-6 md:p-9 ${className}`}>
+    <section
+      className={`rounded-[30px] border border-[#e2ddd6] bg-white p-6 md:p-9 ${className}`}
+    >
       {children}
     </section>
   )
 }
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value }: { label: string value: string }) {
   return (
     <label className="block">
       <span className="mb-2 block text-[12px] font-semibold">{label}</span>
@@ -224,7 +244,7 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Topbar({ mobile, go }: { mobile: boolean; go: Go }) {
+function Topbar({ mobile, go }: { mobile: boolean go: Go }) {
   return (
     <header className="flex h-[70px] items-center justify-between border-b border-[#e9e5df] px-6">
       <div className="flex items-center gap-3">
@@ -242,10 +262,19 @@ function Topbar({ mobile, go }: { mobile: boolean; go: Go }) {
         </button>
       </div>
       <div className="flex items-center gap-3 text-[12px] text-[#756f68]">
-        <button onClick={() => go("paywall")} className="min-h-10 rounded-full border border-transparent px-4 transition-colors hover:border-[#e2ded8] focus:outline-none focus-visible:border-[#e2ded8] focus-visible:ring-2 focus-visible:ring-[#f06455]/50" aria-label="View checks and buy more">
+        <button
+          onClick={() => go("paywall")}
+          className="min-h-10 rounded-full border border-transparent px-4 transition-colors hover:border-[#e2ded8] focus:outline-none focus-visible:border-[#e2ded8] focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+          aria-label="View checks and buy more"
+        >
           <b className="text-[#e85e51]">2</b> free checks left
         </button>
-        <button data-preserve-fill onClick={() => go("settings")} className="grid size-10 place-items-center rounded-full bg-[#ed8b72] font-bold text-white transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50" aria-label="Open user settings">
+        <button
+          data-preserve-fill
+          onClick={() => go("settings")}
+          className="grid size-10 place-items-center rounded-full bg-[#ed8b72] font-bold text-white transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+          aria-label="Open user settings"
+        >
           O
         </button>
       </div>
@@ -281,11 +310,14 @@ function SearchHistoryModal({
 }) {
   const [query, setQuery] = useState("")
   const normalizedQuery = query.trim().toLocaleLowerCase()
-  const matches = state === "empty"
-    ? []
-    : items.filter(([place, hotel, date]) =>
-        `${place} ${hotel} ${date}`.toLocaleLowerCase().includes(normalizedQuery),
-      )
+  const matches =
+    state === "empty"
+      ? []
+      : items.filter(([place, hotel, date]) =>
+          `${place} ${hotel} ${date}`
+            .toLocaleLowerCase()
+            .includes(normalizedQuery),
+        )
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -313,9 +345,13 @@ function SearchHistoryModal({
         aria-labelledby="search-history-title"
         className="w-full max-w-[680px] overflow-hidden rounded-[22px] bg-white shadow-[0_24px_70px_rgba(35,30,27,.22)] ring-1 ring-black/5"
       >
-        <h2 id="search-history-title" className="sr-only">Search hotel checks</h2>
+        <h2 id="search-history-title" className="sr-only">
+          Search hotel checks
+        </h2>
         <div className="interactive-field flex h-[68px] items-center gap-3 border-b border-[#ebe7e1] px-5">
-          <span className="text-[#77716a]"><Icon name="search" /></span>
+          <span className="text-[#77716a]">
+            <Icon name="search" />
+          </span>
           <input
             autoFocus
             value={query}
@@ -342,7 +378,11 @@ function SearchHistoryModal({
                 aria-label={`Open ${place} — ${hotel}`}
                 className="flex w-full items-center gap-4 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-[#f5f2ed] focus:outline-none focus-visible:bg-[#f5f2ed] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
               >
-                <img src={image} alt="" className="size-12 shrink-0 rounded-full object-cover" />
+                <img
+                  src={image}
+                  alt=""
+                  className="size-12 shrink-0 rounded-full object-cover"
+                />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <b className="truncate text-[14px]">{place}</b>
@@ -352,9 +392,13 @@ function SearchHistoryModal({
                       </span>
                     )}
                   </span>
-                  <span className="mt-1 block truncate text-[12px] text-[#77716a]">{hotel}</span>
+                  <span className="mt-1 block truncate text-[12px] text-[#77716a]">
+                    {hotel}
+                  </span>
                 </span>
-                <time className="shrink-0 text-[12px] text-[#9b948c]">{date}</time>
+                <time className="shrink-0 text-[12px] text-[#9b948c]">
+                  {date}
+                </time>
               </button>
             ))}
           </div>
@@ -364,7 +408,9 @@ function SearchHistoryModal({
               <Icon name="search" />
             </span>
             <h3 className="mt-5 text-[14px] font-semibold">
-              {state === "empty" ? "Nothing to search yet" : "No matching checks"}
+              {state === "empty"
+                ? "Nothing to search yet"
+                : "No matching checks"}
             </h3>
             <p className="mt-2 max-w-[300px] text-[12px] leading-relaxed text-[#817a73]">
               {state === "empty"
@@ -392,69 +438,130 @@ function History({
   const history: HistoryEntry[] = [
     ["Rhodes, Greece", "Gennadi Grand Resort", "May 20, 2026", rhodesImage],
     ["Bali, Indonesia", "The Apurva Kempinski Bali", "May 18, 2026", baliImage],
-    ["Barcelona, Spain", "Hotel Neri Relais & Châteaux", "May 15, 2026", barcelonaImage],
+    [
+      "Barcelona, Spain",
+      "Hotel Neri Relais & Châteaux",
+      "May 15, 2026",
+      barcelonaImage,
+    ],
     ["Maldives", "Baros Maldives", "May 12, 2026", maldivesImage],
     ["Prague, Czechia", "Hotel Josef", "May 10, 2026", pragueImage],
   ]
   const currentDraft = draftHotel || defaultDraftHotel
-  const savedDraftRecord = hotelChecks.find((record) => record.status === "draft")
+  const savedDraftRecord = hotelChecks.find(
+    (record) => record.status === "draft",
+  )
   const draftEntry: HistoryEntry = savedDraftRecord
     ? historyEntryFromRecord(savedDraftRecord)
-    : [currentDraft.place, currentDraft.hotel, "Sep 10, 2026", currentDraft.image || rhodesImage, "Draft"]
-  const activeEntry: HistoryEntry = ["Rhodes, Greece", "Gennadi Grand Resort", "Sep 10, 2026", rhodesImage]
+    : [
+        currentDraft.place,
+        currentDraft.hotel,
+        "Sep 10, 2026",
+        currentDraft.image || rhodesImage,
+        "Draft",
+      ]
+  const activeEntry: HistoryEntry = [
+    "Rhodes, Greece",
+    "Gennadi Grand Resort",
+    "Sep 10, 2026",
+    rhodesImage,
+  ]
   const storedHistory = hotelChecks.map(historyEntryFromRecord)
-  const visibleHistory: HistoryEntry[] = state === "empty" && storedHistory.length > 0
-    ? storedHistory
-    : state === "draft"
-    ? [draftEntry]
-    : state === "history-with-draft"
-      ? [draftEntry, ...history]
-      : state === "active"
-        ? [activeEntry]
-        : history
+  const visibleHistory: HistoryEntry[] =
+    state === "empty" && storedHistory.length > 0
+      ? storedHistory
+      : state === "draft"
+        ? [draftEntry]
+        : state === "history-with-draft"
+          ? [draftEntry, ...history]
+          : state === "active"
+            ? [activeEntry]
+            : history
   return (
     <>
-    <aside className="flex min-h-[calc(100vh-70px)] flex-col border-r border-[#e7e3dd] bg-white/80 backdrop-blur-md">
-      <div className="flex h-16 items-center gap-1 px-6">
-        <h2 className="flex-1 text-[14px] font-semibold">Search history</h2>
-        <button onClick={() => setSearchOpen(true)} aria-label="Search history" className="grid size-9 place-items-center rounded-lg text-[#2f2b28] transition-colors hover:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><Icon name="search"/></button>
-        <button onClick={onCollapse} aria-label="Collapse sidebar" className="grid size-9 place-items-center rounded-lg text-[#2f2b28] transition-colors hover:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><Icon name="collapse"/></button>
-      </div>
-      <nav className="space-y-1 border-b border-[#e7e3dd] px-4 pb-5">
-        <button onClick={() => go("home")} className="sidebar-action sidebar-action--check group flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[12px] font-semibold transition-colors duration-200 hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb] focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><span className="interactive-icon-surface sidebar-action-icon grid size-7 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]"><Icon name="checkSpark" size={14}/></span>Check hotel</button>
-        <button onClick={() => go("saved")} className="sidebar-action sidebar-action--saved group flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[12px] font-semibold transition-colors duration-200 hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb] focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><span className="interactive-icon-surface sidebar-action-icon grid size-7 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]"><Icon name="bookmark" size={14}/></span>Saved hotels</button>
-      </nav>
-      {visibleHistory.length === 0 ? (
-        <EmptyHistory />
-      ) : (
-        <div className="space-y-1 px-4 pb-6 pt-5">
-          {visibleHistory.map(([place, hotel, date, image, status]) => (
-            <button
-              key={`${place}-${status || "checked"}`}
-              onClick={() => go(status === "Draft" ? "identify" : "result")}
-              className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-[#f3f0eb] focus:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
-            >
-              <img src={image} alt="" className="size-12 shrink-0 rounded-full object-cover" />
-              <span className="min-w-0 flex-1">
-                <span className="flex min-w-0 items-center gap-2">
-                  <b className="min-w-0 truncate text-[12px]">{place}</b>
-                  {status && (
-                    <span className="shrink-0 rounded-full bg-[#fff0eb] px-2 py-1 text-[12px] font-semibold text-[#d95448]">
-                      {status}
-                    </span>
-                  )}
-                </span>
-                <span className="mt-1 block truncate text-[12px] text-[#77716a]">{hotel}</span>
-                <span className="mt-1 block text-[12px] text-[#a09991]">{date}</span>
-              </span>
-            </button>
-          ))}
+      <aside className="flex min-h-[calc(100vh-70px)] flex-col border-r border-[#e7e3dd] bg-white/80 backdrop-blur-md">
+        <div className="flex h-16 items-center gap-1 px-6">
+          <h2 className="flex-1 text-[14px] font-semibold">Search history</h2>
+          <button
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search history"
+            className="grid size-9 place-items-center rounded-lg text-[#2f2b28] transition-colors hover:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+          >
+            <Icon name="search" />
+          </button>
+          <button
+            onClick={onCollapse}
+            aria-label="Collapse sidebar"
+            className="grid size-9 place-items-center rounded-lg text-[#2f2b28] transition-colors hover:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+          >
+            <Icon name="collapse" />
+          </button>
         </div>
-      )}
-    </aside>
+        <nav className="space-y-1 border-b border-[#e7e3dd] px-4 pb-5">
+          <button
+            onClick={() => go("home")}
+            className="sidebar-action sidebar-action--check group flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[12px] font-semibold transition-colors duration-200 hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb] focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+          >
+            <span className="interactive-icon-surface sidebar-action-icon grid size-7 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
+              <Icon name="checkSpark" size={14} />
+            </span>
+            Check hotel
+          </button>
+          <button
+            onClick={() => go("saved")}
+            className="sidebar-action sidebar-action--saved group flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[12px] font-semibold transition-colors duration-200 hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb] focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+          >
+            <span className="interactive-icon-surface sidebar-action-icon grid size-7 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
+              <Icon name="bookmark" size={14} />
+            </span>
+            Saved hotels
+          </button>
+        </nav>
+        {visibleHistory.length === 0 ? (
+          <EmptyHistory />
+        ) : (
+          <div className="space-y-1 px-4 pb-6 pt-5">
+            {visibleHistory.map(([place, hotel, date, image, status]) => (
+              <button
+                key={`${place}-${status || "checked"}`}
+                onClick={() => go(status === "Draft" ? "identify" : "result")}
+                className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-[#f3f0eb] focus:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
+              >
+                <img
+                  src={image}
+                  alt=""
+                  className="size-12 shrink-0 rounded-full object-cover"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <b className="min-w-0 truncate text-[12px]">{place}</b>
+                    {status && (
+                      <span className="shrink-0 rounded-full bg-[#fff0eb] px-2 py-1 text-[12px] font-semibold text-[#d95448]">
+                        {status}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-1 block truncate text-[12px] text-[#77716a]">
+                    {hotel}
+                  </span>
+                  <span className="mt-1 block text-[12px] text-[#a09991]">
+                    {date}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </aside>
       {searchOpen && (
         <SearchHistoryModal
-          state={visibleHistory.length === 0 ? "empty" : state === "empty" ? "history" : state}
+          state={
+            visibleHistory.length === 0
+              ? "empty"
+              : state === "empty"
+                ? "history"
+                : state
+          }
           items={visibleHistory}
           go={go}
           onClose={() => setSearchOpen(false)}
@@ -491,7 +598,9 @@ function Preferences({ go }: { go: Go }) {
             </span>
             <div className="min-w-0">
               <p className="text-[12px] text-[#8f8880]">{label}</p>
-              <p className="mt-1 text-[12px] font-semibold leading-snug">{value}</p>
+              <p className="mt-1 text-[12px] font-semibold leading-snug">
+                {value}
+              </p>
             </div>
           </div>
         ))}
@@ -548,21 +657,48 @@ function Shell({
   return (
     <div className="product-ui min-h-[800px] bg-[#f7f6f4]">
       <Topbar mobile={viewport === "mobile"} go={go} />
-      <div className={`relative grid min-h-[calc(100vh-70px)] ${desktop ? collapsed ? "grid-cols-[minmax(0,1fr)_310px]" : "grid-cols-[320px_minmax(0,1fr)_310px]" : "grid-cols-1"}`}>
-        {desktop && !collapsed && <History go={go} onCollapse={() => setCollapsed(true)} state={visibleHistoryState} />}
-        {desktop && collapsed && <button onClick={() => setCollapsed(false)} aria-label="Expand sidebar" className="absolute left-5 top-5 z-20 grid size-12 place-items-center rounded-2xl bg-white text-[#393532] shadow-[0_4px_16px_rgba(28,25,23,.12)] transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><Icon name="expand"/></button>}
-        <main className={`min-w-0 p-4 md:p-6 ${desktop && collapsed ? "pl-24" : ""}`}>{children}</main>
+      <div
+        className={`relative grid min-h-[calc(100vh-70px)] ${
+          desktop
+            ? collapsed
+              ? "grid-cols-[minmax(0,1fr)_310px]"
+              : "grid-cols-[320px_minmax(0,1fr)_310px]"
+            : "grid-cols-1"
+        }`}
+      >
+        {desktop && !collapsed && (
+          <History
+            go={go}
+            onCollapse={() => setCollapsed(true)}
+            state={visibleHistoryState}
+          />
+        )}
+        {desktop && collapsed && (
+          <button
+            onClick={() => setCollapsed(false)}
+            aria-label="Expand sidebar"
+            className="absolute left-5 top-5 z-20 grid size-12 place-items-center rounded-2xl bg-white text-[#393532] shadow-[0_4px_16px_rgba(28,25,23,.12)] transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+          >
+            <Icon name="expand" />
+          </button>
+        )}
+        <main
+          className={`min-w-0 p-4 md:p-6 ${
+            desktop && collapsed ? "pl-24" : ""
+          }`}
+        >
+          {children}
+        </main>
         {desktop && <Preferences go={go} />}
       </div>
     </div>
   )
 }
 
-type HotelLookup =
-  | { kind: "identified"; hotel: HotelOption }
-  | { kind: "matches"; hotels: HotelOption[] }
-  | { kind: "clarify" }
-  | { kind: "none" }
+type HotelLookup = { kind: "identified" hotel: HotelOption } | {
+  kind: "matches"
+  hotels: HotelOption[]
+} | { kind: "clarify" } | { kind: "none" }
 
 const hotelCatalog: HotelOption[] = [
   defaultDraftHotel,
@@ -572,20 +708,60 @@ const hotelCatalog: HotelOption[] = [
     image: rhodesImage,
     domains: ["lindosgrand.com"],
   },
-  { place: "Bali, Indonesia", hotel: "The Apurva Kempinski Bali", image: baliImage },
-  { place: "Barcelona, Spain", hotel: "Hotel Neri Relais & Châteaux", image: barcelonaImage },
+  {
+    place: "Bali, Indonesia",
+    hotel: "The Apurva Kempinski Bali",
+    image: baliImage,
+  },
+  {
+    place: "Barcelona, Spain",
+    hotel: "Hotel Neri Relais & Châteaux",
+    image: barcelonaImage,
+  },
   { place: "Maldives", hotel: "Baros Maldives", image: maldivesImage },
   { place: "Prague, Czechia", hotel: "Hotel Josef", image: pragueImage },
-  { place: "Crete, Greece", hotel: "Mitsis Rinela Beach Resort & Spa", image: rhodesImage },
-  { place: "Crete, Greece", hotel: "Mitsis Selection Laguna", image: rhodesImage },
-  { place: "Kos, Greece", hotel: "Mitsis Selection Blue Domes", image: maldivesImage },
+  {
+    place: "Crete, Greece",
+    hotel: "Mitsis Rinela Beach Resort & Spa",
+    image: rhodesImage,
+  },
+  {
+    place: "Crete, Greece",
+    hotel: "Mitsis Selection Laguna",
+    image: rhodesImage,
+  },
+  {
+    place: "Kos, Greece",
+    hotel: "Mitsis Selection Blue Domes",
+    image: maldivesImage,
+  },
   { place: "Kos, Greece", hotel: "Mitsis Norida", image: baliImage },
-  { place: "Rhodes, Greece", hotel: "Mitsis Selection Alila", image: rhodesImage },
-  { place: "Rhodes, Greece", hotel: "Mitsis Rodos Village", image: barcelonaImage },
-  { place: "London, United Kingdom", hotel: "Hilton London Metropole", image: barcelonaImage },
+  {
+    place: "Rhodes, Greece",
+    hotel: "Mitsis Selection Alila",
+    image: rhodesImage,
+  },
+  {
+    place: "Rhodes, Greece",
+    hotel: "Mitsis Rodos Village",
+    image: barcelonaImage,
+  },
+  {
+    place: "London, United Kingdom",
+    hotel: "Hilton London Metropole",
+    image: barcelonaImage,
+  },
   { place: "Bali, Indonesia", hotel: "Hilton Bali Resort", image: baliImage },
-  { place: "Honolulu, USA", hotel: "Hilton Hawaiian Village", image: maldivesImage },
-  { place: "Dubai, UAE", hotel: "Hilton Dubai Palm Jumeirah", image: rhodesImage },
+  {
+    place: "Honolulu, USA",
+    hotel: "Hilton Hawaiian Village",
+    image: maldivesImage,
+  },
+  {
+    place: "Dubai, UAE",
+    hotel: "Hilton Dubai Palm Jumeirah",
+    image: rhodesImage,
+  },
   { place: "Tokyo, Japan", hotel: "Hilton Tokyo", image: pragueImage },
 ]
 
@@ -605,13 +781,20 @@ function Home({
   const [composerValue, setComposerValue] = useState("")
   const [chatMessages, setChatMessages] = useState<string[]>([])
   const [error, setError] = useState("")
-  const [chatStage, setChatStage] = useState<"idle" | "processing" | "confirmation" | "matches" | "clarify" | "none" | "awaiting-input">("idle")
+  const [chatStage, setChatStage] =
+    useState<"idle" | "processing" | "confirmation" | "matches" | "clarify" | "none" | "awaiting-input">(
+      "idle",
+    )
   const [pendingLookup, setPendingLookup] = useState<HotelLookup | null>(null)
   const [candidates, setCandidates] = useState<HotelOption[]>([])
   const [templateModal, setTemplateModal] = useState(false)
-  const [identifiedHotel, setIdentifiedHotel] = useState<HotelOption | null>(null)
+  const [identifiedHotel, setIdentifiedHotel] = useState<HotelOption | null>(
+    null,
+  )
   const insertTranscription = useCallback((text: string) => {
-    setComposerValue((current) => current.trim() ? `${current.trim()} ${text}` : text)
+    setComposerValue((current) =>
+      current.trim() ? `${current.trim()} ${text}` : text,
+    )
     window.setTimeout(() => composerInputRef.current?.focus(), 0)
   }, [])
   const voiceInput = useVoiceTranscription(insertTranscription)
@@ -661,12 +844,16 @@ function Home({
     const normalized = value.trim().toLocaleLowerCase()
     const isLink = /^(https?:\/\/|www\.)\S+/i.test(value.trim())
     if (isLink) {
-      const linkValue = /^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`
+      const linkValue = /^https?:\/\//i.test(value.trim())
+        ? value.trim()
+        : `https://${value.trim()}`
       try {
         const url = new URL(linkValue)
         const host = url.hostname.toLocaleLowerCase().replace(/^www\./, "")
         const domainMatch = hotelCatalog.find((item) =>
-          item.domains?.some((domain) => host === domain || host.endsWith(`.${domain}`)),
+          item.domains?.some(
+            (domain) => host === domain || host.endsWith(`.${domain}`),
+          ),
         )
         if (domainMatch) return { kind: "identified", hotel: domainMatch }
 
@@ -678,24 +865,44 @@ function Home({
           const hotelTerms = item.hotel
             .toLocaleLowerCase()
             .split(/[^\p{L}\p{N}]+/u)
-            .filter((term) => term.length > 3 && !["hotel", "resort"].includes(term))
-          return hotelTerms.length > 0 && hotelTerms.every((term) => linkTerms.includes(term))
+            .filter(
+              (term) => term.length > 3 && !["hotel", "resort"].includes(term),
+            )
+          return (
+            hotelTerms.length > 0 &&
+            hotelTerms.every((term) => linkTerms.includes(term))
+          )
         })
-        if (pathMatches.length === 1) return { kind: "identified", hotel: pathMatches[0] }
+        if (pathMatches.length === 1)
+          return { kind: "identified", hotel: pathMatches[0] }
       } catch {
         return { kind: "none" }
       }
       return { kind: "none" }
     }
 
-    const exact = hotelCatalog.find((item) => item.hotel.toLocaleLowerCase() === normalized)
+    const exact = hotelCatalog.find(
+      (item) => item.hotel.toLocaleLowerCase() === normalized,
+    )
     if (exact) return { kind: "identified", hotel: exact }
 
-    const genericChain = /^(hilton|marriott|hyatt|mitsis|radisson|sheraton)(?: hotels?)?$/.test(normalized)
+    const genericChain =
+      /^(hilton|marriott|hyatt|mitsis|radisson|sheraton)(?: hotels?)?$/.test(
+        normalized,
+      )
     if (genericChain) return { kind: "clarify" }
 
-    const genericWords = new Set(["hotel", "hotels", "resort", "resorts", "spa", "the"])
-    const terms = normalized.split(/\s+/).filter((term) => term && !genericWords.has(term))
+    const genericWords = new Set([
+      "hotel",
+      "hotels",
+      "resort",
+      "resorts",
+      "spa",
+      "the",
+    ])
+    const terms = normalized
+      .split(/\s+/)
+      .filter((term) => term && !genericWords.has(term))
     if (terms.length === 0) return { kind: "none" }
 
     const matches = hotelCatalog.filter((item) => {
@@ -751,13 +958,20 @@ function Home({
     window.setTimeout(() => composerInputRef.current?.focus(), 0)
   }
 
-  const effectiveHistoryState: HistoryState = chatStage === "confirmation"
-    ? historyState === "history" ? "history-with-draft" : "draft"
-    : historyState
+  const effectiveHistoryState: HistoryState =
+    chatStage === "confirmation"
+      ? historyState === "history"
+        ? "history-with-draft"
+        : "draft"
+      : historyState
 
   return (
     <Shell viewport={viewport} go={go} historyState={effectiveHistoryState}>
-      <section className={`flex flex-col overflow-hidden rounded-[30px] border border-[#e2ddd6] bg-white p-6 md:p-9 ${chatStage === "idle" ? "" : "min-h-[calc(100vh-118px)]"}`}>
+      <section
+        className={`flex flex-col overflow-hidden rounded-[30px] border border-[#e2ddd6] bg-white p-6 md:p-9 ${
+          chatStage === "idle" ? "" : "min-h-[calc(100vh-118px)]"
+        }`}
+      >
         {chatStage === "idle" ? (
           <div className="w-full">
             <div className="relative pr-20">
@@ -774,8 +988,14 @@ function Home({
               </p>
             </div>
             <form onSubmit={submitHotel} className="mt-10">
-              <div className={`hotel-query-field interactive-field group flex min-h-16 w-full items-center gap-4 rounded-full bg-[#f3f0eb] px-6 text-left ${error ? "ring-2 ring-[#d95448]/60" : ""}`}>
-                <span className="text-[#8b847c]"><Icon name="spark" /></span>
+              <div
+                className={`hotel-query-field interactive-field group flex min-h-16 w-full items-center gap-4 rounded-full bg-[#f3f0eb] px-6 text-left ${
+                  error ? "ring-2 ring-[#d95448]/60" : ""
+                }`}
+              >
+                <span className="text-[#8b847c]">
+                  <Icon name="spark" />
+                </span>
                 <input
                   ref={hotelInputRef}
                   value={inputValue}
@@ -787,17 +1007,35 @@ function Home({
                   placeholder="Enter a hotel, destination, or link…"
                   className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#8b847c]"
                 />
-                <button type="submit" data-variant="primary" className="shrink-0 rounded-full bg-coral px-6 py-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#e54d49] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50">
+                <button
+                  type="submit"
+                  data-variant="primary"
+                  className="shrink-0 rounded-full bg-coral px-6 py-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#e54d49] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+                >
                   Check hotel
                 </button>
               </div>
-              {error && <p role="alert" className="mt-2 px-6 text-[12px] font-medium text-[#d95448]">{error}</p>}
+              {error && (
+                <p
+                  role="alert"
+                  className="mt-2 px-6 text-[12px] font-medium text-[#d95448]"
+                >
+                  {error}
+                </p>
+              )}
             </form>
             <div className="mt-8 border-t border-[#ebe7e1] pt-6 text-[12px]">
               <p className="text-[#817a73]">Your result will include</p>
               <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
-                {["Personalized match score", "What you'll probably like", "Potential risks to consider", "Why we reached this conclusion"].map((x) => (
-                  <span key={x}><b className="text-[#ed6558]">•</b> &nbsp;{x}</span>
+                {[
+                  "Personalized match score",
+                  "What you'll probably like",
+                  "Potential risks to consider",
+                  "Why we reached this conclusion",
+                ].map((x) => (
+                  <span key={x}>
+                    <b className="text-[#ed6558]">•</b> &nbsp;{x}
+                  </span>
                 ))}
               </div>
             </div>
@@ -806,7 +1044,10 @@ function Home({
           <div className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto pb-6">
               {chatMessages.map((message, index) => (
-                <div key={`${message}-${index}`} className={`${index === 0 ? "" : "mt-4"} flex justify-end`}>
+                <div
+                  key={`${message}-${index}`}
+                  className={`${index === 0 ? "" : "mt-4"} flex justify-end`}
+                >
                   <div className="max-w-[78%] overflow-hidden rounded-[22px] rounded-br-md bg-[#f3f0eb] px-5 py-3 text-[14px] leading-relaxed [overflow-wrap:anywhere]">
                     {message}
                   </div>
@@ -816,15 +1057,23 @@ function Home({
               {chatStage === "processing" && (
                 <div className="mt-8" aria-live="polite">
                   <p className="text-[14px]">Finding matching hotels</p>
-                  <p className="mt-2 text-[12px] text-[#817a73]">Checking names, destinations, and hotel links…</p>
-                  <img src={aiBlob} alt="" className="animate-thinking-blob mt-4 size-11 object-contain" />
+                  <p className="mt-2 text-[12px] text-[#817a73]">
+                    Checking names, destinations, and hotel links…
+                  </p>
+                  <img
+                    src={aiBlob}
+                    alt=""
+                    className="animate-thinking-blob mt-4 size-11 object-contain"
+                  />
                 </div>
               )}
 
               {chatStage === "matches" && (
                 <div className="mt-7" aria-live="polite">
                   <p className="text-[14px]">Choose the hotel you mean</p>
-                  <p className="mt-2 text-[12px] text-[#817a73]">I found these matches across different destinations</p>
+                  <p className="mt-2 text-[12px] text-[#817a73]">
+                    I found these matches across different destinations
+                  </p>
                   <div className="mt-4 space-y-2">
                     {candidates.map((hotel) => (
                       <button
@@ -833,13 +1082,23 @@ function Home({
                         className="flex w-full items-center gap-4 rounded-[20px] border border-[#e2ddd6] bg-[#faf9f7] p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
                       >
                         {hotel.image ? (
-                          <img src={hotel.image} alt="" className="size-12 shrink-0 rounded-xl object-cover" />
+                          <img
+                            src={hotel.image}
+                            alt=""
+                            className="size-12 shrink-0 rounded-xl object-cover"
+                          />
                         ) : (
-                          <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-[#f3f0eb]"><Icon name="hotel" /></span>
+                          <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-[#f3f0eb]">
+                            <Icon name="hotel" />
+                          </span>
                         )}
                         <span className="min-w-0 flex-1">
-                          <b className="block truncate text-[14px]">{hotel.hotel}</b>
-                          <span className="mt-1 block truncate text-[12px] text-[#817a73]">{hotel.place}</span>
+                          <b className="block truncate text-[14px]">
+                            {hotel.hotel}
+                          </b>
+                          <span className="mt-1 block truncate text-[12px] text-[#817a73]">
+                            {hotel.place}
+                          </span>
                         </span>
                         <Icon name="arrow" />
                       </button>
@@ -851,51 +1110,97 @@ function Home({
               {chatStage === "clarify" && (
                 <div className="mt-7" aria-live="polite">
                   <p className="text-[14px]">Please narrow down your search</p>
-                  <p className="mt-2 max-w-[580px] text-[14px] leading-relaxed text-[#817a73]">That hotel chain has many properties. Enter the full hotel name, add a destination, or paste a hotel link.</p>
+                  <p className="mt-2 max-w-[580px] text-[14px] leading-relaxed text-[#817a73]">
+                    That hotel chain has many properties. Enter the full hotel
+                    name, add a destination, or paste a hotel link.
+                  </p>
                 </div>
               )}
 
               {chatStage === "none" && (
                 <div className="mt-7" aria-live="polite">
                   <p className="text-[14px]">No matching hotels found</p>
-                  <p className="mt-2 text-[14px] text-[#817a73]">Try another word, a destination, the full hotel name, or a hotel link</p>
+                  <p className="mt-2 text-[14px] text-[#817a73]">
+                    Try another word, a destination, the full hotel name, or a
+                    hotel link
+                  </p>
                 </div>
               )}
 
               {chatStage === "awaiting-input" && (
                 <div className="mt-7" aria-live="polite">
                   <p className="text-[14px]">Enter another hotel</p>
-                  <p className="mt-2 text-[14px] text-[#817a73]">You can use a hotel name, destination, partial phrase, or link</p>
+                  <p className="mt-2 text-[14px] text-[#817a73]">
+                    You can use a hotel name, destination, partial phrase, or
+                    link
+                  </p>
                 </div>
               )}
 
               {chatStage === "confirmation" && identifiedHotel && (
                 <div className="mt-7" aria-live="polite">
-                  <p className="text-[14px]">I found this hotel. Is this the one you meant?</p>
+                  <p className="text-[14px]">
+                    I found this hotel. Is this the one you meant?
+                  </p>
                   <div className="mt-4 flex items-center gap-4 rounded-[22px] border border-[#e2ddd6] bg-[#faf9f7] p-4">
                     {identifiedHotel.image ? (
-                      <img src={identifiedHotel.image} alt="" className="size-16 shrink-0 rounded-2xl object-cover" />
+                      <img
+                        src={identifiedHotel.image}
+                        alt=""
+                        className="size-16 shrink-0 rounded-2xl object-cover"
+                      />
                     ) : (
-                      <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-[#f3f0eb] text-[#2f2b28]"><Icon name="hotel" size={24} /></span>
+                      <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-[#f3f0eb] text-[#2f2b28]">
+                        <Icon name="hotel" size={24} />
+                      </span>
                     )}
                     <div className="min-w-0">
-                      <b className="block truncate text-[14px]">{identifiedHotel.hotel}</b>
-                      <span className="mt-1 block truncate text-[12px] text-[#817a73]">{identifiedHotel.place}</span>
+                      <b className="block truncate text-[14px]">
+                        {identifiedHotel.hotel}
+                      </b>
+                      <span className="mt-1 block truncate text-[12px] text-[#817a73]">
+                        {identifiedHotel.place}
+                      </span>
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Button primary onClick={() => { resolveDraft(); go("analysis") }}>Yes, start check</Button>
-                    <Button onClick={requestAnotherHotel}>No, change hotel</Button>
+                    <Button
+                      primary
+                      onClick={() => {
+                        resolveDraft()
+                        go("analysis")
+                      }}
+                    >
+                      Yes, start check
+                    </Button>
+                    <Button onClick={requestAnotherHotel}>
+                      No, change hotel
+                    </Button>
                   </div>
-                  <p className="mt-3 text-[12px] text-[#9b948c]">A credit is used only after you confirm and start the check</p>
+                  <p className="mt-3 text-[12px] text-[#9b948c]">
+                    A credit is used only after you confirm and start the check
+                  </p>
                 </div>
               )}
             </div>
 
-            <form onSubmit={submitChatMessage} className="mt-auto border-t border-[#ebe7e1] pt-4">
-              <div className={`interactive-field flex min-h-14 items-center gap-3 rounded-[22px] bg-[#f3f0eb] px-3 pl-5 ${voiceInput.status === "recording" ? "ring-2 ring-[#f06455]/35" : ""}`}>
+            <form
+              onSubmit={submitChatMessage}
+              className="mt-auto border-t border-[#ebe7e1] pt-4"
+            >
+              <div
+                className={`interactive-field flex min-h-14 items-center gap-3 rounded-[22px] bg-[#f3f0eb] px-3 pl-5 ${
+                  voiceInput.status === "recording"
+                    ? "ring-2 ring-[#f06455]/35"
+                    : ""
+                }`}
+              >
                 {voiceInput.status === "recording" ? (
-                  <div className="flex min-w-0 flex-1 items-center gap-3 text-[14px]" role="status" aria-live="polite">
+                  <div
+                    className="flex min-w-0 flex-1 items-center gap-3 text-[14px]"
+                    role="status"
+                    aria-live="polite"
+                  >
                     <span className="relative flex size-3">
                       <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#f06455] opacity-40" />
                       <span className="relative inline-flex size-3 rounded-full bg-[#f06455]" />
@@ -903,11 +1208,19 @@ function Home({
                     <span>Recording…</span>
                   </div>
                 ) : voiceInput.status === "requesting" ? (
-                  <div className="flex min-w-0 flex-1 items-center gap-2 text-[14px] text-[#817a73]" role="status" aria-live="polite">
+                  <div
+                    className="flex min-w-0 flex-1 items-center gap-2 text-[14px] text-[#817a73]"
+                    role="status"
+                    aria-live="polite"
+                  >
                     <span>Connecting to microphone…</span>
                   </div>
                 ) : voiceInput.status === "transcribing" ? (
-                  <div className="flex min-w-0 flex-1 items-center gap-2 text-[14px] text-[#817a73]" role="status" aria-live="polite">
+                  <div
+                    className="flex min-w-0 flex-1 items-center gap-2 text-[14px] text-[#817a73]"
+                    role="status"
+                    aria-live="polite"
+                  >
                     <span>Transcribing…</span>
                   </div>
                 ) : (
@@ -942,9 +1255,15 @@ function Home({
                       <Icon name="stop" size={15} />
                     </button>
                   </>
-                ) : voiceInput.status === "requesting" || voiceInput.status === "transcribing" ? (
-                  <span className="grid size-10 shrink-0 place-items-center text-[#817a73]" aria-hidden="true">
-                    <span className="animate-spin"><Icon name="loader" /></span>
+                ) : voiceInput.status === "requesting" ||
+                  voiceInput.status === "transcribing" ? (
+                  <span
+                    className="grid size-10 shrink-0 place-items-center text-[#817a73]"
+                    aria-hidden="true"
+                  >
+                    <span className="animate-spin">
+                      <Icon name="loader" />
+                    </span>
                   </span>
                 ) : composerValue.trim() ? (
                   <button
@@ -967,7 +1286,10 @@ function Home({
                 )}
               </div>
               {voiceInput.message && (
-                <p role="alert" className="mt-2 px-3 text-[12px] text-[#b2473e]">
+                <p
+                  role="alert"
+                  className="mt-2 px-3 text-[12px] text-[#b2473e]"
+                >
                   {voiceInput.message}
                 </p>
               )}
@@ -978,25 +1300,45 @@ function Home({
       {chatStage === "idle" && (
         <Card className="mt-6">
           <div className="flex justify-between gap-4">
-            <h2 className="text-[23px] font-bold">Start with a quick template</h2>
-            <span className="text-[12px] text-[#817a73]">View all templates →</span>
+            <h2 className="text-[23px] font-bold">
+              Start with a quick template
+            </h2>
+            <span className="text-[12px] text-[#817a73]">
+              View all templates →
+            </span>
           </div>
-          <div className={`mt-6 grid gap-4 ${viewport === "mobile" ? "grid-cols-1" : "grid-cols-[1.4fr_.7fr]"}`}>
+          <div
+            className={`mt-6 grid gap-4 ${
+              viewport === "mobile" ? "grid-cols-1" : "grid-cols-[1.4fr_.7fr]"
+            }`}
+          >
             <button
               onClick={() => hotelInputRef.current?.focus()}
               className="flex min-h-60 flex-col justify-end rounded-[26px] bg-[linear-gradient(135deg,#faf4ee,#f6e2d9)] p-7 text-left"
             >
               <b className="text-[18px]">Check how a hotel fits you</b>
-              <span className="mt-3 text-[12px] font-semibold text-[#e55e51]">Start checking →</span>
+              <span className="mt-3 text-[12px] font-semibold text-[#e55e51]">
+                Start checking →
+              </span>
             </button>
             <div className="grid gap-4">
-              <button onClick={() => go("alternative")} className="rounded-[24px] bg-[#f3f0eb] p-6 text-left">
+              <button
+                onClick={() => go("alternative")}
+                className="rounded-[24px] bg-[#f3f0eb] p-6 text-left"
+              >
                 <b>Find better-fit alternative</b>
-                <span className="mt-3 block text-[12px] text-[#817a73]">Explore alternatives →</span>
+                <span className="mt-3 block text-[12px] text-[#817a73]">
+                  Explore alternatives →
+                </span>
               </button>
-              <button onClick={() => setTemplateModal(true)} className="rounded-[24px] bg-[#f3f0eb] p-6 text-left">
+              <button
+                onClick={() => setTemplateModal(true)}
+                className="rounded-[24px] bg-[#f3f0eb] p-6 text-left"
+              >
                 <b>Compare hotels</b>
-                <span className="mt-3 block text-[12px] text-[#817a73]">Learn more →</span>
+                <span className="mt-3 block text-[12px] text-[#817a73]">
+                  Learn more →
+                </span>
               </button>
             </div>
           </div>
@@ -1004,13 +1346,34 @@ function Home({
       )}
       {templateModal && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/25 p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="compare-hotels-title" className="w-full max-w-md rounded-[28px] bg-white p-7">
-            <button onClick={() => setTemplateModal(false)} aria-label="Close dialog" className="float-right grid size-11 place-items-center rounded-full border border-[#e2ddd6]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="compare-hotels-title"
+            className="w-full max-w-md rounded-[28px] bg-white p-7"
+          >
+            <button
+              onClick={() => setTemplateModal(false)}
+              aria-label="Close dialog"
+              className="float-right grid size-11 place-items-center rounded-full border border-[#e2ddd6]"
+            >
               <Icon name="close" />
             </button>
-            <h2 id="compare-hotels-title" className="pr-12 text-[24px] font-bold">Compare hotels is coming soon</h2>
-            <p className="mt-4 text-[14px] leading-relaxed text-[#756f68]">You’ll soon be able to compare hotels side by side and see which one fits your preferences better</p>
-            <div className="mt-7"><Button primary onClick={() => setTemplateModal(false)}>Got it</Button></div>
+            <h2
+              id="compare-hotels-title"
+              className="pr-12 text-[24px] font-bold"
+            >
+              Compare hotels is coming soon
+            </h2>
+            <p className="mt-4 text-[14px] leading-relaxed text-[#756f68]">
+              You’ll soon be able to compare hotels side by side and see which
+              one fits your preferences better
+            </p>
+            <div className="mt-7">
+              <Button primary onClick={() => setTemplateModal(false)}>
+                Got it
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -1037,6 +1400,425 @@ function Centered({
     </div>
   )
 }
+
+type PreferencePriority = "important" | "critical"
+
+const onboardingPreferenceOptions = [
+  "Quiet room",
+  "High floor",
+  "Good breakfast",
+  "Pool access",
+  "Easy access",
+  "Free parking",
+  "Fitness center",
+  "Pet-friendly",
+  "Family-friendly facilities",
+  "Beach access",
+  "Central location",
+  "Air conditioning",
+  "Spacious room",
+  "Sea view",
+  "Excellent cleanliness",
+  "Accessible bathroom",
+  "Airport transfer",
+  "Late check-out",
+]
+
+function StepperButton({
+  label,
+  onClick,
+  disabled = false,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      data-preserve-fill
+      className="grid size-12 shrink-0 place-items-center rounded-full border border-[#d8d3cc] bg-white text-[24px] leading-none text-[#1c1917] transition hover:border-[#aaa39a] disabled:cursor-not-allowed disabled:opacity-35"
+    >
+      {label.startsWith("Decrease") ? "−" : "+"}
+    </button>
+  )
+}
+
+function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
+  const [step, setStep] = useState(1)
+  const [adults, setAdults] = useState(1)
+  const [children, setChildren] = useState<number[]>([])
+  const [travelsWithPets, setTravelsWithPets] = useState(false)
+  const [selectedPreferences, setSelectedPreferences] = useState<string[]>([])
+  const [customPreferences, setCustomPreferences] = useState<string[]>([])
+  const [customPreference, setCustomPreference] = useState("")
+  const [priorities, setPriorities] =
+    useState<Record<string, PreferencePriority>>({})
+
+  const allPreferences = [...onboardingPreferenceOptions, ...customPreferences]
+  const hasMinimumPreferences = selectedPreferences.length >= 3
+  const allPrioritiesAssigned =
+    selectedPreferences.length >= 3 &&
+    selectedPreferences.every((preference) => Boolean(priorities[preference]))
+
+  const togglePreference = (preference: string) => {
+    setSelectedPreferences((current) => {
+      if (current.includes(preference)) {
+        setPriorities((currentPriorities) => {
+          const next = { ...currentPriorities }
+          delete next[preference]
+          return next
+        })
+        return current.filter((item) => item !== preference)
+      }
+      return [...current, preference]
+    })
+  }
+
+  const addCustomPreference = () => {
+    const normalized = customPreference.trim().replace(/\s+/g, " ")
+    if (!normalized) return
+    const existing = allPreferences.find(
+      (preference) =>
+        preference.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
+    )
+    const preference = existing || normalized
+    if (!existing) setCustomPreferences((current) => [...current, preference])
+    setSelectedPreferences((current) =>
+      current.includes(preference) ? current : [...current, preference],
+    )
+    setCustomPreference("")
+  }
+
+  const finishOnboarding = () => {
+    if (!allPrioritiesAssigned) return
+    window.localStorage.setItem(
+      "fitstay.travelerProfile",
+      JSON.stringify({
+        adults,
+        childAges: children,
+        travelsWithPets,
+        preferences: selectedPreferences.map((label) => ({
+          label,
+          priority: priorities[label],
+        })),
+        updatedAt: new Date().toISOString(),
+      }),
+    )
+    go("home")
+  }
+
+  const isMobile = viewport === "mobile"
+  const stepMeta = [
+    ["WHO'S TRAVELING", "Who usually travels with you?"],
+    ["PREFERENCES", "What matters to you?"],
+    ["PRIORITIES", "Set your priorities"],
+  ] as const
+
+  return (
+    <main className="product-ui min-h-[800px] bg-[#f5f2ed] px-5 py-10 text-[#1c1917] md:px-10 md:py-14">
+      <div className="mx-auto w-full max-w-[960px]">
+        <div
+          className="grid grid-cols-3 gap-3"
+          aria-label={`Step ${step} of 3`}
+        >
+          {[1, 2, 3].map((segment) => (
+            <span
+              key={segment}
+              className={`h-1.5 rounded-full ${
+                segment <= step ? "bg-[#f75b56]" : "bg-[#dedbd4]"
+              }`}
+            />
+          ))}
+        </div>
+
+        <p className="mt-14 text-[14px] font-medium tracking-[.18em] text-[#aaa59f]">
+          STEP {step} OF 3 · {stepMeta[step - 1][0]}
+        </p>
+        <h1 className="font-display mt-7 text-[40px] font-normal italic leading-[1.08] tracking-[-.035em] md:text-[58px]">
+          {stepMeta[step - 1][1]}
+        </h1>
+
+        {step === 1 && (
+          <div className="mt-14 space-y-5">
+            <section className="flex min-h-[150px] items-center justify-between gap-6 rounded-[38px] bg-white px-7 py-7 md:px-10">
+              <div>
+                <h2 className="text-[22px] font-semibold">Adults</h2>
+                <p className="mt-1 text-[16px] text-[#aaa59f]">Age 18+</p>
+              </div>
+              <div className="flex items-center gap-5">
+                <StepperButton
+                  label="Decrease"
+                  disabled={adults <= 1}
+                  onClick={() => setAdults((value) => Math.max(1, value - 1))}
+                />
+                <span className="min-w-6 text-center text-[24px] font-medium">
+                  {adults}
+                </span>
+                <StepperButton
+                  label="Increase"
+                  onClick={() => setAdults((value) => value + 1)}
+                />
+              </div>
+            </section>
+
+            <section className="rounded-[38px] bg-white px-7 py-8 md:px-10">
+              <div className="flex items-center justify-between gap-5">
+                <div>
+                  <h2 className="text-[22px] font-semibold">Children</h2>
+                  <p className="mt-1 text-[16px] text-[#aaa59f]">Under 18</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChildren((current) => [...current, 8])}
+                  className="min-h-11 rounded-full px-3 text-[16px] font-semibold text-[#f75b56]"
+                >
+                  + Add child
+                </button>
+              </div>
+              {children.length > 0 && (
+                <div className="mt-7 space-y-4 border-t border-[#eee9e2] pt-6">
+                  {children.map((age, index) => (
+                    <div
+                      key={index}
+                      className="flex flex-wrap items-center justify-between gap-4"
+                    >
+                      <span className="min-w-16 text-[16px] text-[#777169]">
+                        Child {index + 1}
+                      </span>
+                      <div className="flex items-center gap-4">
+                        <StepperButton
+                          label={`Decrease age for child ${index + 1}`}
+                          disabled={age <= 0}
+                          onClick={() =>
+                            setChildren((current) =>
+                              current.map((value, childIndex) =>
+                                childIndex === index
+                                  ? Math.max(0, value - 1)
+                                  : value,
+                              ),
+                            )
+                          }
+                        />
+                        <span className="min-w-14 text-center text-[18px]">
+                          {age} yrs
+                        </span>
+                        <StepperButton
+                          label={`Increase age for child ${index + 1}`}
+                          disabled={age >= 17}
+                          onClick={() =>
+                            setChildren((current) =>
+                              current.map((value, childIndex) =>
+                                childIndex === index
+                                  ? Math.min(17, value + 1)
+                                  : value,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setChildren((current) =>
+                            current.filter(
+                              (_, childIndex) => childIndex !== index,
+                            ),
+                          )
+                        }
+                        className="min-h-11 rounded-full px-3 text-[14px] text-[#8f8982]"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="flex min-h-[150px] items-center justify-between gap-6 rounded-[38px] bg-white px-7 py-7 md:px-10">
+              <div>
+                <h2 className="text-[22px] font-semibold">
+                  Traveling with pets
+                </h2>
+                <p className="mt-1 text-[16px] text-[#aaa59f]">
+                  Pet policy will be checked
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={travelsWithPets}
+                aria-label="Traveling with pets"
+                onClick={() => setTravelsWithPets((value) => !value)}
+                data-preserve-fill
+                className={`relative h-12 w-[82px] shrink-0 rounded-full transition-colors ${
+                  travelsWithPets ? "bg-[#f75b56]" : "bg-[#d8d6d2]"
+                }`}
+              >
+                <span
+                  className={`absolute top-1 size-10 rounded-full bg-white shadow-sm transition-transform ${
+                    travelsWithPets ? "translate-x-[38px]" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </section>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="mt-8">
+            <p className="text-[18px] text-[#918b84]">
+              Select at least 3 preferences
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              {allPreferences.map((preference) => {
+                const selected = selectedPreferences.includes(preference)
+                return (
+                  <button
+                    key={preference}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => togglePreference(preference)}
+                    data-preserve-fill
+                    className={`min-h-14 rounded-full border px-6 text-[16px] transition ${
+                      selected
+                        ? "border-[#f75b56] bg-[#f75b56] text-white"
+                        : "border-[#d9d5cf] bg-white text-[#625e59] hover:border-[#aaa39a]"
+                    }`}
+                  >
+                    {preference}
+                  </button>
+                )
+              })}
+            </div>
+            <form
+              className="mt-8 flex gap-3"
+              onSubmit={(event) => {
+                event.preventDefault()
+                addCustomPreference()
+              }}
+            >
+              <input
+                value={customPreference}
+                onChange={(event) => setCustomPreference(event.target.value)}
+                placeholder="Add your own preference"
+                aria-label="Add your own preference"
+                className="interactive-field min-h-14 min-w-0 flex-1 rounded-full border border-[#d9d5cf] bg-white px-6 text-[16px] outline-none placeholder:text-[#aaa59f]"
+              />
+              <button
+                type="submit"
+                disabled={!customPreference.trim()}
+                data-preserve-fill
+                className="grid size-14 shrink-0 place-items-center rounded-full bg-[#1c1917] text-white transition hover:bg-[#3b3632] disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label="Add preference"
+              >
+                <Plus size={22} strokeWidth={1.8} />
+              </button>
+            </form>
+            <p
+              className={`mt-4 text-[14px] ${
+                hasMinimumPreferences ? "text-[#777169]" : "text-[#b4493e]"
+              }`}
+            >
+              {selectedPreferences.length} selected ·{" "}
+              {hasMinimumPreferences
+                ? "Ready to continue"
+                : `${3 - selectedPreferences.length} more required`}
+            </p>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="mt-10">
+            <p className="text-[18px] leading-relaxed text-[#918b84]">
+              Mark every preference as important or critical
+            </p>
+            <div className="mt-8 space-y-3">
+              {selectedPreferences.map((preference) => (
+                <section
+                  key={preference}
+                  className="flex flex-col gap-5 rounded-[28px] bg-white px-6 py-6 md:flex-row md:items-center md:justify-between md:px-8"
+                >
+                  <h2 className="text-[18px]">{preference}</h2>
+                  <div className="flex flex-wrap gap-3">
+                    {(["important", "critical"] as const).map((priority) => {
+                      const selected = priorities[preference] === priority
+                      return (
+                        <button
+                          key={priority}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() =>
+                            setPriorities((current) => ({
+                              ...current,
+                              [preference]: priority,
+                            }))
+                          }
+                          data-preserve-fill
+                          className={`min-h-12 rounded-full border px-5 text-[14px] font-semibold capitalize transition ${
+                            selected
+                              ? "border-[#f75b56] bg-[#f75b56] text-white"
+                              : "border-[#d9d5cf] bg-white text-[#8f8982] hover:border-[#aaa39a]"
+                          }`}
+                        >
+                          {priority}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+            {!allPrioritiesAssigned && (
+              <p className="mt-4 text-[14px] text-[#b4493e]">
+                Choose a priority for every preference
+              </p>
+            )}
+          </div>
+        )}
+
+        <div
+          className={`mt-14 flex gap-4 ${
+            isMobile ? "flex-col-reverse" : "items-center"
+          }`}
+        >
+          {step > 1 && (
+            <button
+              type="button"
+              onClick={() => setStep((current) => Math.max(1, current - 1))}
+              className={`${
+                isMobile ? "w-full" : "w-44"
+              } min-h-16 rounded-full border border-[#d4cfc7] bg-transparent px-7 text-[16px] font-semibold`}
+            >
+              Back
+            </button>
+          )}
+          <button
+            type="button"
+            data-variant="primary"
+            disabled={
+              (step === 2 && !hasMinimumPreferences) ||
+              (step === 3 && !allPrioritiesAssigned)
+            }
+            onClick={() => {
+              if (step === 1) setStep(2)
+              else if (step === 2 && hasMinimumPreferences) setStep(3)
+              else if (step === 3) finishOnboarding()
+            }}
+            className="min-h-16 flex-1 rounded-full bg-[#f75b56] px-8 text-[16px] font-semibold text-white transition hover:bg-[#e6534f] disabled:cursor-not-allowed disabled:bg-[#d7d2cb] disabled:text-[#9a948c]"
+          >
+            {step === 3 ? "Start using fitstay" : "Continue"}
+          </button>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 function Account({
   screen,
   viewport,
@@ -1060,44 +1842,14 @@ function Account({
               Resend email
             </Button>
           </div>
-          <button className="mt-3 min-h-11 w-full text-[12px] font-semibold text-[#777169]">Change email</button>
+          <button className="mt-3 min-h-11 w-full text-[12px] font-semibold text-[#777169]">
+            Change email
+          </button>
         </Card>
       </Centered>
     )
   if (screen === "onboarding")
-    return (
-      <Centered viewport={viewport}>
-        <Card>
-          <p className="text-[12px] font-semibold text-[#e55e51]">
-            Your traveler profile · 1 of 3
-          </p>
-          <h1 className="mt-3 text-[28px] font-bold">
-            Let’s make every check personal
-          </h1>
-          <div className="mt-7 space-y-4">
-            <Field label="Your name" value="Olivia" />
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Adults" value="2" />
-              <Field label="Children" value="1 · age 7" />
-            </div>
-            <Field label="Pets" value="Dog" />
-            <Field
-              label="What matters to you"
-              value="Quiet room · Great breakfast · Easy beach access"
-            />
-          </div>
-          <label className="mt-5 flex gap-3 text-[12px]">
-            <input type="checkbox" defaultChecked /> I confirm that I am 18 or
-            older.
-          </label>
-          <div className="mt-7">
-            <Button primary full onClick={() => go("home")}>
-              Save and continue
-            </Button>
-          </div>
-        </Card>
-      </Centered>
-    )
+    return <OnboardingFlow viewport={viewport} go={go} />
   return (
     <Centered viewport={viewport}>
       <Card>
@@ -1166,11 +1918,12 @@ function State({
   go: Go
 }) {
   const c = states[screen]!
-  const stateHistory: HistoryState = screen === "identify"
-    ? "draft"
-    : ["preliminary", "no-data", "failed"].includes(screen)
-      ? "active"
-      : "empty"
+  const stateHistory: HistoryState =
+    screen === "identify"
+      ? "draft"
+      : ["preliminary", "no-data", "failed"].includes(screen)
+        ? "active"
+        : "empty"
   return (
     <Shell viewport={viewport} go={go} historyState={stateHistory}>
       <div className="mx-auto max-w-[720px]">
@@ -1237,7 +1990,7 @@ function State({
   )
 }
 
-function Paywall({ viewport, go }: { viewport: Viewport; go: Go }) {
+function Paywall({ viewport, go }: { viewport: Viewport go: Go }) {
   return (
     <Shell viewport={viewport} go={go}>
       <div className="mx-auto max-w-[760px]">
@@ -1276,7 +2029,7 @@ function Paywall({ viewport, go }: { viewport: Viewport; go: Go }) {
     </Shell>
   )
 }
-function Analysis({ viewport, go }: { viewport: Viewport; go: Go }) {
+function Analysis({ viewport, go }: { viewport: Viewport go: Go }) {
   const [open, setOpen] = useState(true)
   return (
     <Shell viewport={viewport} go={go} historyState="active">
@@ -1320,7 +2073,7 @@ function Analysis({ viewport, go }: { viewport: Viewport; go: Go }) {
     </Shell>
   )
 }
-function Result({ viewport, go }: { viewport: Viewport; go: Go }) {
+function Result({ viewport, go }: { viewport: Viewport go: Go }) {
   const cats = [
     ["Room & comfort", "88", "Checked 3 of 3"],
     ["Food & service", "91", "Checked 2 of 2"],
@@ -1373,7 +2126,9 @@ function Result({ viewport, go }: { viewport: Viewport; go: Go }) {
             >
               <span className="float-right text-[26px] font-bold">{b}</span>
               <b className="text-[12px]">{a}</b>
-              <small className="mt-2 block text-[12px] text-[#8d867f]">{c}</small>
+              <small className="mt-2 block text-[12px] text-[#8d867f]">
+                {c}
+              </small>
             </button>
           ))}
         </div>
@@ -1474,7 +2229,7 @@ function Alternative({
     </Shell>
   )
 }
-function Profile({ viewport, go }: { viewport: Viewport; go: Go }) {
+function Profile({ viewport, go }: { viewport: Viewport go: Go }) {
   return (
     <Shell viewport={viewport} go={go}>
       <div className="mx-auto max-w-[800px]">
@@ -1521,10 +2276,121 @@ function Profile({ viewport, go }: { viewport: Viewport; go: Go }) {
   )
 }
 
-function UtilityPage({ screen, viewport, go }: { screen: "saved" | "settings" | "help"; viewport: Viewport; go: Go }) {
-  if (screen === "saved") return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[820px]"><h1 className="text-[30px] font-bold">Saved hotels</h1><p className="mt-2 text-[12px] text-[#7b756e]">Hotels saved with a specific result version</p><div className="mt-6 grid gap-4">{[["Gennadi Grand Resort","Rhodes, Greece","82% Match",rhodesImage],["Baros Maldives","Maldives","Saved result",maldivesImage]].map(([hotel,place,status,image])=><button key={hotel} onClick={()=>go("result")} className="flex items-center gap-4 rounded-[24px] border border-[#e2ddd6] bg-white p-4 text-left hover:border-[#bcb5ad] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"><img src={image} alt="" className="size-16 rounded-2xl object-cover"/><span className="flex-1"><b className="block text-[14px]">{hotel}</b><span className="mt-1 block text-[12px] text-[#7b756e]">{place}</span></span><span className="text-[12px] font-semibold text-[#477555]">{status}</span></button>)}</div></div></Shell>
-  if (screen === "settings") return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[760px]"><h1 className="text-[30px] font-bold">Settings</h1><div className="mt-6 space-y-4"><Card><h2 className="font-bold">Account</h2><div className="mt-5 space-y-4"><Field label="Name" value="Olivia"/><Field label="Email" value="olivia@example.com"/><Field label="Sign-in method" value="Email magic link"/></div></Card><Card><h2 className="font-bold">Notifications</h2><label className="mt-5 flex items-center justify-between text-[12px]"><span>In-app check updates</span><input type="checkbox" defaultChecked/></label><label className="mt-4 flex items-center justify-between text-[12px]"><span>Email check updates</span><input type="checkbox"/></label></Card></div></div></Shell>
-  return <Shell viewport={viewport} go={go}><div className="mx-auto max-w-[760px]"><h1 className="text-[30px] font-bold">Help & Support</h1><p className="mt-2 text-[12px] text-[#7b756e]">Find answers or contact support about a specific check</p><div className="mt-6 space-y-4"><Card><h2 className="font-bold">How can we help?</h2><div className="mt-5 space-y-2">{["Understanding your result","Credits and payments","Report incorrect information","Account access"].map(item=><button key={item} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-[#e2ddd6] px-4 text-left text-[12px] font-semibold hover:bg-[#f7f4ef] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50">{item}<Icon name="arrow"/></button>)}</div><div className="mt-6"><Button primary>Contact support</Button></div></Card></div></div></Shell>
+function UtilityPage({
+  screen,
+  viewport,
+  go,
+}: {
+  screen: "saved" | "settings" | "help"
+  viewport: Viewport
+  go: Go
+}) {
+  if (screen === "saved")
+    return (
+      <Shell viewport={viewport} go={go}>
+        <div className="mx-auto max-w-[820px]">
+          <h1 className="text-[30px] font-bold">Saved hotels</h1>
+          <p className="mt-2 text-[12px] text-[#7b756e]">
+            Hotels saved with a specific result version
+          </p>
+          <div className="mt-6 grid gap-4">
+            {[
+              [
+                "Gennadi Grand Resort",
+                "Rhodes, Greece",
+                "82% Match",
+                rhodesImage,
+              ],
+              ["Baros Maldives", "Maldives", "Saved result", maldivesImage],
+            ].map(([hotel, place, status, image]) => (
+              <button
+                key={hotel}
+                onClick={() => go("result")}
+                className="flex items-center gap-4 rounded-[24px] border border-[#e2ddd6] bg-white p-4 text-left hover:border-[#bcb5ad] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+              >
+                <img
+                  src={image}
+                  alt=""
+                  className="size-16 rounded-2xl object-cover"
+                />
+                <span className="flex-1">
+                  <b className="block text-[14px]">{hotel}</b>
+                  <span className="mt-1 block text-[12px] text-[#7b756e]">
+                    {place}
+                  </span>
+                </span>
+                <span className="text-[12px] font-semibold text-[#477555]">
+                  {status}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Shell>
+    )
+  if (screen === "settings")
+    return (
+      <Shell viewport={viewport} go={go}>
+        <div className="mx-auto max-w-[760px]">
+          <h1 className="text-[30px] font-bold">Settings</h1>
+          <div className="mt-6 space-y-4">
+            <Card>
+              <h2 className="font-bold">Account</h2>
+              <div className="mt-5 space-y-4">
+                <Field label="Name" value="Olivia" />
+                <Field label="Email" value="olivia@example.com" />
+                <Field label="Sign-in method" value="Email magic link" />
+              </div>
+            </Card>
+            <Card>
+              <h2 className="font-bold">Notifications</h2>
+              <label className="mt-5 flex items-center justify-between text-[12px]">
+                <span>In-app check updates</span>
+                <input type="checkbox" defaultChecked />
+              </label>
+              <label className="mt-4 flex items-center justify-between text-[12px]">
+                <span>Email check updates</span>
+                <input type="checkbox" />
+              </label>
+            </Card>
+          </div>
+        </div>
+      </Shell>
+    )
+  return (
+    <Shell viewport={viewport} go={go}>
+      <div className="mx-auto max-w-[760px]">
+        <h1 className="text-[30px] font-bold">Help & Support</h1>
+        <p className="mt-2 text-[12px] text-[#7b756e]">
+          Find answers or contact support about a specific check
+        </p>
+        <div className="mt-6 space-y-4">
+          <Card>
+            <h2 className="font-bold">How can we help?</h2>
+            <div className="mt-5 space-y-2">
+              {[
+                "Understanding your result",
+                "Credits and payments",
+                "Report incorrect information",
+                "Account access",
+              ].map((item) => (
+                <button
+                  key={item}
+                  className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-[#e2ddd6] px-4 text-left text-[12px] font-semibold hover:bg-[#f7f4ef] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+                >
+                  {item}
+                  <Icon name="arrow" />
+                </button>
+              ))}
+            </div>
+            <div className="mt-6">
+              <Button primary>Contact support</Button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </Shell>
+  )
 }
 
 function Preview({
@@ -1562,7 +2428,9 @@ export default function VisualLab() {
   const requestedScreen = params.get("preview") as ScreenId | null
   const cleanPreview = Boolean(
     requestedScreen &&
-    groups.flatMap((group) => group.items).some(([id]) => id === requestedScreen),
+      groups
+        .flatMap((group) => group.items)
+        .some(([id]) => id === requestedScreen),
   )
   const viewportForWidth = (width: number): Viewport =>
     width < 600 ? "mobile" : width < 1024 ? "tablet" : "desktop"
@@ -1570,7 +2438,8 @@ export default function VisualLab() {
   const [viewport, setViewport] = useState<Viewport>(() =>
     cleanPreview ? viewportForWidth(window.innerWidth) : "desktop",
   )
-  const [hotelChecks, setHotelChecks] = useState<HotelCheckRecord[]>(readLocalHotelChecks)
+  const [hotelChecks, setHotelChecks] =
+    useState<HotelCheckRecord[]>(readLocalHotelChecks)
   const [draftHotel, setDraftHotel] = useState<HotelOption | null>(() => {
     if (requestedScreen === "home-draft") return defaultDraftHotel
     const storedDraft = hotelChecks.find((record) => record.status === "draft")
@@ -1624,7 +2493,8 @@ export default function VisualLab() {
 
   useEffect(() => {
     if (!cleanPreview) return
-    const updateViewport = () => setViewport(viewportForWidth(window.innerWidth))
+    const updateViewport = () =>
+      setViewport(viewportForWidth(window.innerWidth))
     window.addEventListener("resize", updateViewport)
     return () => window.removeEventListener("resize", updateViewport)
   }, [cleanPreview])
