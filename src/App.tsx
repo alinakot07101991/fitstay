@@ -859,6 +859,7 @@ async function sendAccountVerification(user: User, lang: Lang) {
   auth.languageCode = lang === 'ua' ? 'uk' : 'en'
   const verificationUrl = new URL('/auth/email-verified', window.location.origin)
   verificationUrl.searchParams.set('lang', lang)
+  verificationUrl.searchParams.set('source', 'email-verification')
   await sendEmailVerification(user, {
     url: verificationUrl.toString(),
     handleCodeInApp: false,
@@ -1187,7 +1188,11 @@ function EmailVerificationCallback({ lang }: { lang: Lang }) {
           return
         }
 
-        setState(mode === 'verifyEmail' && actionCode ? 'sign-in' : 'unverified')
+        // The default Firebase handler consumes the action code before it sends
+        // the user to our continue URL. In a different browser context there is
+        // no local auth session to reload, so the correct next step is sign-in,
+        // not a false "email is not verified" error.
+        setState('sign-in')
       } catch (authError) {
         const code = authErrorCode(authError)
         if (code === 'auth/expired-action-code') setState('expired')
