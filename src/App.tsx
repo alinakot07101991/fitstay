@@ -1211,22 +1211,26 @@ function EmailVerificationCallback({ lang }: { lang: Lang }) {
               : (isUA ? 'Не вдалося підтвердити email' : 'Could not verify your email')
 
   return (
-    <div className="min-h-screen bg-ivory font-sans flex items-center justify-center px-6 py-16">
-      <div className="w-full max-w-[400px] text-center">
-        <img src={aiBlob} alt="" className="w-24 h-24 object-contain mb-8 mx-auto" />
-        <h1 className="font-display italic text-ink leading-tight" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{title}</h1>
+    <div className="relative flex min-h-screen items-center justify-center bg-ivory px-6 py-20 font-sans">
+      <a href="/" className="absolute left-6 top-6 text-ink transition-opacity hover:opacity-65" aria-label={isUA ? 'На головну' : 'Back to home'}>
+        <Logo />
+      </a>
+      <div className="w-full max-w-[440px] rounded-[32px] border border-ink/10 bg-white/75 px-7 py-10 text-center shadow-[0_18px_60px_rgba(29,25,22,0.06)] sm:px-10 sm:py-12">
+        <img src={aiBlob} alt="" className={`mx-auto mb-7 h-20 w-20 object-contain ${state === 'loading' ? 'animate-pulse' : ''}`} />
+        <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-coral">fitstay verification</p>
+        <h1 className="font-display italic leading-tight text-ink" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{title}</h1>
         {state === 'loading' && <p className="mt-4 text-[14px] text-ink/50">{isUA ? 'Це займе лише мить' : 'This will only take a moment'}</p>}
         {state === 'success' && <p role="status" className="mt-4 text-[14px] text-ink/50">{isUA ? 'Переходимо до налаштування профілю' : 'Taking you to profile setup'}</p>}
         {state === 'sign-in' && (
           <div className="mt-5">
             <p className="text-[14px] leading-relaxed text-ink/50">{isUA ? 'Увійдіть у підтверджений акаунт, щоб перейти до онбордингу' : 'Log in to your verified account to continue to onboarding'}</p>
-            <a href="/?auth=1&next=onboarding" className="mt-7 inline-flex h-12 items-center justify-center rounded-full bg-coral px-7 text-[14px] font-bold text-white hover:bg-[#e54d49]">{isUA ? 'Увійти' : 'Log in'}</a>
+            <a href="/?auth=1&next=onboarding" className="mt-7 inline-flex h-12 w-full items-center justify-center rounded-full bg-coral px-7 text-[14px] font-bold text-white transition-colors hover:bg-[#e54d49]">{isUA ? 'Увійти' : 'Log in'}</a>
           </div>
         )}
         {(state === 'unverified' || state === 'expired' || state === 'invalid' || state === 'error') && (
           <div className="mt-5">
-            <p role="alert" className="text-[14px] leading-relaxed text-ink/50">{message || (state === 'expired' ? (isUA ? 'Запросіть нове посилання для підтвердження.' : 'Request a new verification link.') : state === 'unverified' ? (isUA ? 'Відкрийте посилання з листа або надішліть його повторно.' : 'Open the link from your email or request a new one.') : (isUA ? 'Це посилання неможливо використати.' : 'This verification link cannot be used.'))}</p>
-            <a href="/?auth=1&next=onboarding" className="mt-7 inline-flex h-12 items-center justify-center rounded-full bg-coral px-7 text-[14px] font-bold text-white hover:bg-[#e54d49]">{isUA ? 'Повернутися до входу' : 'Back to log in'}</a>
+            <p role="alert" className="rounded-2xl bg-[#fff0eb] px-4 py-3 text-[14px] leading-relaxed text-[#9f3f36]">{message || (state === 'expired' ? (isUA ? 'Запросіть нове посилання для підтвердження' : 'Request a new verification link') : state === 'unverified' ? (isUA ? 'Відкрийте посилання з листа або надішліть його повторно' : 'Open the link from your email or request a new one') : (isUA ? 'Це посилання неможливо використати' : 'This verification link cannot be used'))}</p>
+            <a href="/?auth=1&next=onboarding" className="mt-7 inline-flex h-12 w-full items-center justify-center rounded-full bg-coral px-7 text-[14px] font-bold text-white transition-colors hover:bg-[#e54d49]">{isUA ? 'Повернутися до входу' : 'Back to log in'}</a>
           </div>
         )}
       </div>
