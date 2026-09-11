@@ -849,6 +849,10 @@ function Footer({ tx }: { tx: Tx }) {
 // ─── Auth page ────────────────────────────────────────────────────────────────
 
 type AuthMode = 'login' | 'register'
+type AuthFieldErrors = {
+  email?: string
+  password?: string
+}
 const pendingEmailVerificationKey = 'fitstay.pendingEmailVerification'
 
 async function sendAccountVerification(user: User, lang: Lang) {
@@ -892,6 +896,8 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({})
+  const [passwordValidationAttempted, setPasswordValidationAttempted] = useState(false)
   const [notice, setNotice] = useState('')
   const [verificationEmail, setVerificationEmail] = useState('')
 
@@ -915,13 +921,45 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
   const sub = isRegister
     ? (isUA ? 'Почніть безкоштовно — 2 перевірки готелів включено' : 'Start free — 2 hotel checks included')
     : (isUA ? 'Увійдіть, щоб продовжити роботу з перевірками готелів' : 'Log in to continue to your hotel checks')
+  const passwordRequirements = [
+    {
+      id: 'length',
+      met: password.length >= 8,
+      label: isUA ? 'Щонайменше 8 символів' : 'At least 8 characters',
+    },
+    {
+      id: 'uppercase',
+      met: /[A-ZА-ЯЁЇІЄҐ]/.test(password),
+      label: isUA ? '1 велика літера' : '1 uppercase letter',
+    },
+    {
+      id: 'number',
+      met: /\d/.test(password),
+      label: isUA ? '1 цифра' : '1 number',
+    },
+  ]
+  const passwordMeetsRequirements = passwordRequirements.every((requirement) => requirement.met)
+  const emailHasError = Boolean(fieldErrors.email)
+  const passwordHasError = Boolean(fieldErrors.password) || (isRegister && passwordValidationAttempted && !passwordMeetsRequirements)
 
   const handleEmailAuth = async () => {
     if (loading) return
     setError('')
+    setFieldErrors({})
     setNotice('')
+    const nextFieldErrors: AuthFieldErrors = {}
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
-      setError(isUA ? 'Введіть коректний email.' : 'Enter a valid email address.')
+      nextFieldErrors.email = isUA ? 'Введіть коректну email-адресу' : 'Enter a valid email address'
+    }
+    if (!password) nextFieldErrors.password = isUA ? 'Введіть пароль' : 'Enter your password'
+    if (isRegister) {
+      setPasswordValidationAttempted(true)
+      if (password && !passwordMeetsRequirements) {
+        nextFieldErrors.password = isUA ? 'Пароль не відповідає всім вимогам' : 'Password does not meet all requirements'
+      }
+    }
+    if (Object.keys(nextFieldErrors).length) {
+      setFieldErrors(nextFieldErrors)
       return
     }
     if (isRegister && name.trim().length < 2) {
@@ -932,17 +970,6 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
       setError(isUA ? 'Підтвердьте, що вам виповнилося 18 років.' : 'Confirm that you are at least 18 years old.')
       return
     }
-    if (!password) {
-      setError(isUA ? 'Введіть пароль.' : 'Enter your password.')
-      return
-    }
-    const hasUppercaseLetter = /[A-ZА-ЯЁЇІЄҐ]/.test(password)
-    const hasNumber = /\d/.test(password)
-    if (isRegister && (password.length < 8 || !hasUppercaseLetter || !hasNumber)) {
-      setError(isUA ? 'Пароль має містити щонайменше 8 символів, одну велику літеру та одну цифру.' : 'Password must contain at least 8 characters, 1 uppercase letter, and 1 number.')
-      return
-    }
-
     setLoading(true)
     try {
       const normalizedEmail = email.trim().toLocaleLowerCase()
@@ -963,7 +990,16 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
       }
       window.location.assign(destination)
     } catch (authError) {
-      setError(authErrorMessage(authError, isUA))
+      const code = authErrorCode(authError)
+      const message = authErrorMessage(authError, isUA).replace(/[.]$/, '')
+      if (code === 'auth/invalid-email' || code === 'auth/email-already-in-use') {
+        setFieldErrors({ email: message })
+      } else if (code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/weak-password' || code === 'auth/missing-password') {
+        setFieldErrors({ password: message })
+        if (isRegister) setPasswordValidationAttempted(true)
+      } else {
+        setError(message)
+      }
     } finally {
       setLoading(false)
     }
@@ -972,6 +1008,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
   const handleSocialAuth = async (provider: AuthProvider) => {
     if (loading) return
     setError('')
+    setFieldErrors({})
     if (isRegister && !ageConfirmed) {
       setError(isUA ? 'Підтвердьте, що вам виповнилося 18 років.' : 'Confirm that you are at least 18 years old.')
       return
@@ -1020,6 +1057,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
       setPassword('')
       setNotice('')
       setError('')
+      setFieldErrors({})
     } finally {
       setLoading(false)
     }
@@ -1060,7 +1098,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
               </div>
               <div className="flex items-center gap-3 mb-6"><div className="flex-1 h-px bg-ink/10"/><span className="text-[12px] text-ink/35">{isUA ? 'або через email' : 'or with email'}</span><div className="flex-1 h-px bg-ink/10"/></div>
 
-              <form onSubmit={(event) => { event.preventDefault(); void handleEmailAuth() }} className="space-y-3">
+              <form noValidate onSubmit={(event) => { event.preventDefault(); void handleEmailAuth() }} className="space-y-3">
                 {isRegister && (
                   <div>
                     <label className="block text-[12px] font-medium text-ink/50 mb-1.5">{isUA ? "Ім'я" : 'Name'}</label>
@@ -1069,12 +1107,27 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
                 )}
                 <div>
                   <label htmlFor="auth-email" className="block text-[12px] font-medium text-ink/50 mb-1.5">Email</label>
-                  <input id="auth-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); if (error) setError('') }} required placeholder={isUA ? 'Введіть email-адресу' : 'Enter an email address'} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
+                  <input id="auth-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); setFieldErrors((current) => ({ ...current, email: undefined })); if (error) setError('') }} required aria-invalid={emailHasError} aria-describedby={emailHasError ? 'auth-email-error' : undefined} placeholder={isUA ? 'Введіть email-адресу' : 'Enter an email address'} className={`w-full h-12 bg-white border rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none ${emailHasError ? 'border-[#c94a3d] focus:border-[#c94a3d]' : 'border-ink/12 focus:border-ink/30'}`} />
+                  {fieldErrors.email && <p id="auth-email-error" role="alert" className="mt-1.5 px-1 text-[12px] font-medium text-[#b74339]">{fieldErrors.email}</p>}
                 </div>
                 <div>
                   <label htmlFor="auth-password" className="block text-[12px] font-medium text-ink/50 mb-1.5">{isUA ? 'Пароль' : 'Password'}</label>
-                  <input id="auth-password" type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} value={password} onChange={(event) => { setPassword(event.target.value); if (error) setError('') }} required minLength={isRegister ? 8 : 1} aria-describedby={isRegister ? 'password-requirements' : undefined} placeholder={isRegister ? (isUA ? 'Створіть пароль' : 'Create a password') : (isUA ? 'Введіть пароль' : 'Enter a password')} className="w-full h-12 bg-white border border-ink/12 rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none focus:border-ink/30" />
-                  {isRegister && <p id="password-requirements" className="mt-2 px-1 text-[12px] leading-relaxed text-ink/45">{isUA ? 'Щонайменше 8 символів, 1 велика літера та 1 цифра' : 'At least 8 characters, 1 uppercase letter, and 1 number'}</p>}
+                  <input id="auth-password" type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} value={password} onChange={(event) => { setPassword(event.target.value); setFieldErrors((current) => ({ ...current, password: undefined })); if (error) setError('') }} required minLength={isRegister ? 8 : 1} aria-invalid={passwordHasError} aria-describedby={[fieldErrors.password ? 'auth-password-error' : '', isRegister ? 'password-requirements' : ''].filter(Boolean).join(' ') || undefined} placeholder={isRegister ? (isUA ? 'Створіть пароль' : 'Create a password') : (isUA ? 'Введіть пароль' : 'Enter a password')} className={`w-full h-12 bg-white border rounded-full px-5 text-[14px] text-ink placeholder:text-ink/30 focus:outline-none ${passwordHasError ? 'border-[#c94a3d] focus:border-[#c94a3d]' : 'border-ink/12 focus:border-ink/30'}`} />
+                  {fieldErrors.password && <p id="auth-password-error" role="alert" className="mt-1.5 px-1 text-[12px] font-medium text-[#b74339]">{fieldErrors.password}</p>}
+                  {isRegister && (
+                    <ul id="password-requirements" className="mt-2 space-y-1 px-1 text-[12px] leading-relaxed">
+                      {passwordRequirements.map((requirement) => {
+                        const showValidation = passwordValidationAttempted || password.length > 0
+                        const stateClass = !showValidation ? 'text-ink/45' : requirement.met ? 'text-[#3f6748]' : 'text-[#b74339]'
+                        return (
+                          <li key={requirement.id} className={`flex items-center gap-1.5 ${stateClass}`}>
+                            <span aria-hidden="true" className="w-3 text-center">{showValidation ? (requirement.met ? '✓' : '×') : '•'}</span>
+                            <span>{requirement.label}</span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
                 </div>
                 {isRegister && (
                   <label className="flex cursor-pointer items-start gap-3 rounded-2xl px-1 py-2 text-[14px] leading-relaxed text-ink/55">
@@ -1090,7 +1143,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
 
               <p className="text-center text-[13px] text-ink/40 mt-6">
                 {isRegister ? (isUA ? 'Вже є акаунт?' : 'Already have an account?') : (isUA ? 'Ще немає акаунту?' : "Don't have an account?")}{' '}
-                <button type="button" onClick={() => { setMode(isRegister ? 'login' : 'register'); setPassword(''); setError('') }} className="text-ink font-medium hover:text-coral">{isRegister ? (isUA ? 'Увійти' : 'Log in') : (isUA ? 'Зареєструватися' : 'Create one')}</button>
+                <button type="button" onClick={() => { setMode(isRegister ? 'login' : 'register'); setPassword(''); setFieldErrors({}); setPasswordValidationAttempted(false); setError('') }} className="text-ink font-medium hover:text-coral">{isRegister ? (isUA ? 'Увійти' : 'Log in') : (isUA ? 'Зареєструватися' : 'Create one')}</button>
               </p>
               {isRegister && <p className="text-center text-[12px] text-ink/30 mt-5 leading-relaxed">{isUA ? 'Продовжуючи, ви погоджуєтесь з умовами використання та політикою конфіденційності.' : 'By continuing you agree to our Terms of Service and Privacy Policy.'}</p>}
             </>
