@@ -1532,7 +1532,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
 
   return (
     <main className="product-ui grid min-h-screen items-center bg-[#f5f2ed] px-5 py-10 text-[#1c1917] md:px-10 md:py-14">
-      <div className="mx-auto w-full max-w-[760px]">
+      <div className="mx-auto w-full max-w-[480px]">
         <div
           className="grid grid-cols-3 gap-3"
           aria-label={`Step ${step} of 3`}
