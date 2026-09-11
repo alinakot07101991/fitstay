@@ -27,6 +27,15 @@
 
 ## Історія
 
+### 2026-09-11 — Google Places став canonical hotel identity layer
+
+- Тип: Code / Data / Operations
+- Статус: Погоджено
+- Зміна: додано окремий server-only Google Places API (New) service для Text Search, conservative hotel matching, stable Place ID і базової metadata. Запит використовує мінімальний field mask без reviews або photos, повертає ambiguous candidates замість неявного вибору, не робить automatic retries і кешує успішні resolutions на 24 години на server instance та в browser session.
+- Причина: створити canonical hotel identity, яку надалі використовуватимуть SerpApi, Tripadvisor та інші evidence providers, не перетворюючи Places на review corpus.
+- Артефакти: `server/google-places-service.js`, `server/google-places-service.d.ts`, `server/google-places.js`, `server/google-places.d.ts`, `server/google-places.test.mjs`, `src/googlePlaces.ts`, `vite.config.ts`, `.env.example` і Sites runtime environment.
+- Вплив: один uncached hotel lookup виконує один Google Places request; UI, Groq analysis, scoring і review collection не змінено.
+
 ### 2026-09-11 — Інтегровано SerpApi Google Hotels reviews
 
 - Тип: Code / Data / Operations
