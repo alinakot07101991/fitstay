@@ -1616,7 +1616,9 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                           }
                         />
                         <span className="min-w-14 text-center text-[14px]">
-                          {age === 0 ? "Under 1" : `${age} yrs`}
+                          {age === 0
+                            ? "Under 1 year"
+                            : `${age} ${age === 1 ? "year" : "years"}`}
                         </span>
                         <StepperButton
                           label={`Increase age for child ${index + 1}`}
