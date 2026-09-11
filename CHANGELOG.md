@@ -27,6 +27,15 @@
 
 ## Історія
 
+### 2026-09-11 — Інтегровано SerpApi Google Hotels reviews
+
+- Тип: Code / Data / Operations
+- Статус: Погоджено
+- Зміна: додано modular server-only provider для ідентифікації Google Hotels property, перевірки неоднозначних збігів, отримання Google-only reviews через pagination token, нормалізації оригінального review text та структурованої обробки missing token, no reviews, invalid key, quota, network і malformed response failures. Додано безпечне development logging без API key.
+- Причина: підготувати Google Hotels review corpus для майбутнього AI-аналізу без передавання SerpApi API key у browser code.
+- Артефакти: `server/serpapi-google-hotels.js`, `server/serpapi-google-hotels.d.ts`, `server/serpapi-google-hotels.test.mjs`, `src/googleHotelsReviews.ts`, `vite.config.ts`, `.env.example` і Sites runtime environment.
+- Вплив: UI, Groq analysis і match-score не змінено; внутрішній endpoint повертає hotel identity, property token, кількість і нормалізовані reviews.
+
 ### 2026-09-11 — Інтегровано Tripadvisor Terra reviews API
 
 - Тип: Code / Data / Operations

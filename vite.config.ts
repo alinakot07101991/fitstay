@@ -7,6 +7,7 @@ import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
 import { handleTripadvisorHotelReviews } from './server/tripadvisor.js'
+import { handleGoogleHotelsReviews } from './server/serpapi-google-hotels.js'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -27,6 +28,7 @@ export default defineConfig(({ mode }) => {
       sites(),
       groqTranscriptionDev(environment.GROQ_API_KEY),
       tripadvisorReviewsDev(environment.TRIPADVISOR_API_KEY),
+      googleHotelsReviewsDev(environment.SERPAPI_API_KEY),
       sitesStaticWorker(),
       figmaSiteConfiguration(siteConfiguration),
       figmaErrorOverlayReplay(),
@@ -199,6 +201,61 @@ function tripadvisorReviewsDev(apiKey?: string): Plugin {
   }
 }
 
+const MAX_SERPAPI_REQUEST_BYTES = 16 * 1024
+
+/** Proxies local Google Hotels review requests without exposing the SerpApi key to browser code. */
+function googleHotelsReviewsDev(apiKey?: string): Plugin {
+  return {
+    name: 'google-hotels-reviews-dev',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/api/google-hotels/reviews', async (req, res) => {
+        const sendResponse = async (response: Response) => {
+          res.statusCode = response.status
+          response.headers.forEach((value, key) => res.setHeader(key, value))
+          res.end(Buffer.from(await response.arrayBuffer()))
+        }
+
+        try {
+          const chunks: Buffer[] = []
+          let receivedBytes = 0
+          for await (const chunk of req) {
+            const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+            receivedBytes += buffer.length
+            if (receivedBytes > MAX_SERPAPI_REQUEST_BYTES) {
+              await sendResponse(new Response(
+                JSON.stringify({ error: { code: 'request_too_large', message: 'Request is too large' } }),
+                { status: 413, headers: { 'Content-Type': 'application/json; charset=utf-8' } },
+              ))
+              return
+            }
+            chunks.push(buffer)
+          }
+
+          const request = new Request('http://localhost/api/google-hotels/reviews', {
+            method: req.method,
+            headers: { 'content-type': req.headers['content-type'] || 'application/json' },
+            body: req.method === 'GET' || req.method === 'HEAD'
+              ? undefined
+              : new Uint8Array(Buffer.concat(chunks)),
+          })
+          await sendResponse(await handleGoogleHotelsReviews(request, apiKey))
+        } catch {
+          await sendResponse(new Response(
+            JSON.stringify({
+              error: {
+                code: 'serpapi_unavailable',
+                message: 'Google Hotels reviews are temporarily unavailable',
+              },
+            }),
+            { status: 502, headers: { 'Content-Type': 'application/json; charset=utf-8' } },
+          ))
+        }
+      })
+    },
+  }
+}
+
 /** Emits the Cloudflare Worker entrypoint required by Sites, including private API proxies. */
 function sitesStaticWorker(): Plugin {
   let root = process.cwd()
@@ -210,6 +267,7 @@ function sitesStaticWorker(): Plugin {
     },
     async closeBundle() {
       const workerSource = `import { handleTripadvisorHotelReviews } from './tripadvisor.js'
+import { handleGoogleHotelsReviews } from './serpapi-google-hotels.js'
 
 const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
 const GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
@@ -272,6 +330,9 @@ export default {
     if (url.pathname === '/api/tripadvisor/reviews') {
       return handleTripadvisorHotelReviews(request, env.TRIPADVISOR_API_KEY)
     }
+    if (url.pathname === '/api/google-hotels/reviews') {
+      return handleGoogleHotelsReviews(request, env.SERPAPI_API_KEY)
+    }
     const response = await env.ASSETS.fetch(request)
     if (response.status !== 404) return response
     return env.ASSETS.fetch(new Request(new URL('/', request.url), request))
@@ -283,6 +344,10 @@ export default {
       await copyFile(
         path.resolve(root, 'server/tripadvisor.js'),
         path.resolve(workerDirectory, 'tripadvisor.js'),
+      )
+      await copyFile(
+        path.resolve(root, 'server/serpapi-google-hotels.js'),
+        path.resolve(workerDirectory, 'serpapi-google-hotels.js'),
       )
     },
   }
