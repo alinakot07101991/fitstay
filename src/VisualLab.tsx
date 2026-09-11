@@ -1441,7 +1441,7 @@ function StepperButton({
       disabled={disabled}
       onClick={onClick}
       data-preserve-fill
-      className="grid size-12 shrink-0 place-items-center rounded-full border border-[#d8d3cc] bg-white text-[24px] leading-none text-[#1c1917] transition hover:border-[#aaa39a] disabled:cursor-not-allowed disabled:opacity-35"
+      className="grid size-10 shrink-0 place-items-center rounded-full border border-[#d8d3cc] bg-white text-[20px] leading-none text-[#1c1917] transition hover:border-[#aaa39a] disabled:cursor-not-allowed disabled:opacity-35"
     >
       {label.startsWith("Decrease") ? "−" : "+"}
     </button>
@@ -1531,7 +1531,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
   ] as const
 
   return (
-    <main className="product-ui grid min-h-screen items-center bg-[#f5f2ed] px-5 py-10 text-[#1c1917] md:px-10 md:py-14">
+    <main className="product-ui grid min-h-screen items-center bg-[#f5f2ed] px-5 py-8 text-[#1c1917]">
       <div className="mx-auto w-full max-w-[480px]">
         <div
           className="grid grid-cols-3 gap-3"
@@ -1547,27 +1547,27 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
           ))}
         </div>
 
-        <p className="mt-14 text-[14px] font-medium tracking-[.18em] text-[#aaa59f]">
+        <p className="mt-8 text-[12px] font-medium tracking-[.18em] text-[#aaa59f]">
           STEP {step} OF 3 · {stepMeta[step - 1][0]}
         </p>
-        <h1 className="font-display mt-7 text-[40px] font-normal italic leading-[1.08] tracking-[-.035em] md:text-[58px]">
+        <h1 className="font-display mt-3 text-[32px] font-normal italic leading-[1.12] tracking-[-.035em]">
           {stepMeta[step - 1][1]}
         </h1>
 
         {step === 1 && (
-          <div className="mt-14 space-y-5">
-            <section className="flex min-h-[150px] items-center justify-between gap-6 rounded-[38px] bg-white px-7 py-7 md:px-10">
+          <div className="mt-8 space-y-4">
+            <section className="flex min-h-24 items-center justify-between gap-4 rounded-[24px] bg-white p-5">
               <div>
-                <h2 className="text-[22px] font-semibold">Adults</h2>
-                <p className="mt-1 text-[16px] text-[#aaa59f]">Age 18+</p>
+                <h2 className="text-[14px] font-semibold">Adults</h2>
+                <p className="mt-1 text-[12px] text-[#aaa59f]">Age 18+</p>
               </div>
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-3">
                 <StepperButton
                   label="Decrease"
                   disabled={adults <= 1}
                   onClick={() => setAdults((value) => Math.max(1, value - 1))}
                 />
-                <span className="min-w-6 text-center text-[24px] font-medium">
+                <span className="min-w-5 text-center text-[14px] font-medium">
                   {adults}
                 </span>
                 <StepperButton
@@ -1577,31 +1577,31 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
               </div>
             </section>
 
-            <section className="rounded-[38px] bg-white px-7 py-8 md:px-10">
-              <div className="flex items-center justify-between gap-5">
+            <section className="rounded-[24px] bg-white p-5">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-[22px] font-semibold">Children</h2>
-                  <p className="mt-1 text-[16px] text-[#aaa59f]">Under 18</p>
+                  <h2 className="text-[14px] font-semibold">Children</h2>
+                  <p className="mt-1 text-[12px] text-[#aaa59f]">Under 18</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setChildren((current) => [...current, 8])}
-                  className="min-h-11 rounded-full px-3 text-[16px] font-semibold text-[#f75b56]"
+                  className="min-h-10 rounded-full px-3 text-[14px] font-semibold text-[#f75b56]"
                 >
                   + Add child
                 </button>
               </div>
               {children.length > 0 && (
-                <div className="mt-7 space-y-4 border-t border-[#eee9e2] pt-6">
+                <div className="mt-5 space-y-4 border-t border-[#eee9e2] pt-5">
                   {children.map((age, index) => (
                     <div
                       key={index}
                       className="flex flex-wrap items-center justify-between gap-4"
                     >
-                      <span className="min-w-16 text-[16px] text-[#777169]">
+                      <span className="min-w-16 text-[14px] text-[#777169]">
                         Child {index + 1}
                       </span>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         <StepperButton
                           label={`Decrease age for child ${index + 1}`}
                           disabled={age <= 0}
@@ -1615,7 +1615,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                             )
                           }
                         />
-                        <span className="min-w-14 text-center text-[18px]">
+                        <span className="min-w-12 text-center text-[14px]">
                           {age} yrs
                         </span>
                         <StepperButton
@@ -1651,12 +1651,12 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
               )}
             </section>
 
-            <section className="flex min-h-[150px] items-center justify-between gap-6 rounded-[38px] bg-white px-7 py-7 md:px-10">
+            <section className="flex min-h-24 items-center justify-between gap-4 rounded-[24px] bg-white p-5">
               <div>
-                <h2 className="text-[22px] font-semibold">
+                <h2 className="text-[14px] font-semibold">
                   Traveling with pets
                 </h2>
-                <p className="mt-1 text-[16px] text-[#aaa59f]">
+                <p className="mt-1 text-[12px] text-[#aaa59f]">
                   Pet policy will be checked
                 </p>
               </div>
@@ -1667,13 +1667,13 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                 aria-label="Traveling with pets"
                 onClick={() => setTravelsWithPets((value) => !value)}
                 data-preserve-fill
-                className={`relative h-12 w-[82px] shrink-0 rounded-full transition-colors ${
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
                   travelsWithPets ? "bg-[#f75b56]" : "bg-[#d8d6d2]"
                 }`}
               >
                 <span
-                  className={`absolute top-1 size-10 rounded-full bg-white shadow-sm transition-transform ${
-                    travelsWithPets ? "translate-x-[38px]" : "translate-x-1"
+                  className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${
+                    travelsWithPets ? "translate-x-6" : "translate-x-1"
                   }`}
                 />
               </button>
@@ -1682,11 +1682,11 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
         )}
 
         {step === 2 && (
-          <div className="mt-8">
-            <p className="text-[18px] text-[#918b84]">
+          <div className="mt-5">
+            <p className="text-[14px] text-[#918b84]">
               Select at least 3 preferences
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-5 flex flex-wrap gap-2.5">
               {allPreferences.map((preference) => {
                 const selected = selectedPreferences.includes(preference)
                 return (
@@ -1696,7 +1696,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                     aria-pressed={selected}
                     onClick={() => togglePreference(preference)}
                     data-preserve-fill
-                    className={`min-h-14 rounded-full border px-6 text-[16px] transition ${
+                    className={`min-h-11 rounded-full border px-4 text-[14px] transition ${
                       selected
                         ? "border-[#f75b56] bg-[#f75b56] text-white"
                         : "border-[#d9d5cf] bg-white text-[#625e59] hover:border-[#aaa39a]"
@@ -1708,7 +1708,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
               })}
             </div>
             <form
-              className="mt-8 flex gap-3"
+              className="mt-5 flex gap-3"
               onSubmit={(event) => {
                 event.preventDefault()
                 addCustomPreference()
@@ -1719,13 +1719,13 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                 onChange={(event) => setCustomPreference(event.target.value)}
                 placeholder="Add your own preference"
                 aria-label="Add your own preference"
-                className="interactive-field min-h-14 min-w-0 flex-1 rounded-full border border-[#d9d5cf] bg-white px-6 text-[16px] outline-none placeholder:text-[#aaa59f]"
+                className="interactive-field min-h-12 min-w-0 flex-1 rounded-full border border-[#d9d5cf] bg-white px-4 text-[14px] outline-none placeholder:text-[#aaa59f]"
               />
               <button
                 type="submit"
                 disabled={!customPreference.trim()}
                 data-preserve-fill
-                className="grid size-14 shrink-0 place-items-center rounded-full bg-[#1c1917] text-white transition hover:bg-[#3b3632] disabled:cursor-not-allowed disabled:opacity-35"
+                className="grid size-12 shrink-0 place-items-center rounded-full bg-[#1c1917] text-white transition hover:bg-[#3b3632] disabled:cursor-not-allowed disabled:opacity-35"
                 aria-label="Add preference"
               >
                 <Plus size={22} strokeWidth={1.8} />
@@ -1745,17 +1745,17 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
         )}
 
         {step === 3 && (
-          <div className="mt-10">
-            <p className="text-[18px] leading-relaxed text-[#918b84]">
+          <div className="mt-6">
+            <p className="text-[14px] leading-relaxed text-[#918b84]">
               Mark every preference as important or critical
             </p>
-            <div className="mt-8 space-y-3">
+            <div className="mt-5 space-y-3">
               {selectedPreferences.map((preference) => (
                 <section
                   key={preference}
-                  className="flex flex-col gap-5 rounded-[28px] bg-white px-6 py-6 md:flex-row md:items-center md:justify-between md:px-8"
+                  className="flex flex-col gap-4 rounded-[20px] bg-white p-5 md:flex-row md:items-center md:justify-between"
                 >
-                  <h2 className="text-[18px]">{preference}</h2>
+                  <h2 className="text-[14px]">{preference}</h2>
                   <div className="flex flex-wrap gap-3">
                     {(["important", "critical"] as const).map((priority) => {
                       const selected = priorities[preference] === priority
@@ -1771,7 +1771,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                             }))
                           }
                           data-preserve-fill
-                          className={`min-h-12 rounded-full border px-5 text-[14px] font-semibold capitalize transition ${
+                          className={`min-h-10 rounded-full border px-4 text-[14px] font-semibold capitalize transition ${
                             selected
                               ? "border-[#f75b56] bg-[#f75b56] text-white"
                               : "border-[#d9d5cf] bg-white text-[#8f8982] hover:border-[#aaa39a]"
@@ -1802,7 +1802,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
         )}
 
         <div
-          className={`mt-14 flex gap-4 ${
+          className={`mt-8 flex gap-3 ${
             isMobile ? "flex-col-reverse" : "items-center"
           }`}
         >
@@ -1812,7 +1812,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
               onClick={() => setStep((current) => Math.max(1, current - 1))}
               className={`${
                 isMobile ? "w-full" : "w-32"
-              } min-h-16 rounded-full border border-[#d4cfc7] bg-transparent px-7 text-[16px] font-semibold`}
+              } min-h-12 rounded-full border border-[#d4cfc7] bg-transparent px-5 text-[14px] font-semibold`}
             >
               Back
             </button>
@@ -1830,7 +1830,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
               else if (step === 2 && hasMinimumPreferences) setStep(3)
               else if (step === 3) void finishOnboarding()
             }}
-            className="min-h-16 flex-1 rounded-full bg-[#f75b56] px-8 text-[16px] font-semibold text-white transition hover:bg-[#e6534f] disabled:cursor-not-allowed disabled:bg-[#d7d2cb] disabled:text-[#9a948c]"
+            className="min-h-12 flex-1 rounded-full bg-[#f75b56] px-6 text-[14px] font-semibold text-white transition hover:bg-[#e6534f] disabled:cursor-not-allowed disabled:bg-[#d7d2cb] disabled:text-[#9a948c]"
           >
             {isSaving
               ? "Saving…"
