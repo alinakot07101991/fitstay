@@ -1615,7 +1615,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                             )
                           }
                         />
-                        <span className="min-w-14 text-center text-[14px]">
+                        <span className="w-24 shrink-0 whitespace-nowrap text-center text-[14px] tabular-nums">
                           {age === 0
                             ? "Under 1 year"
                             : `${age} ${age === 1 ? "year" : "years"}`}
