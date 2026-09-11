@@ -38,7 +38,7 @@ import maldivesImage from "@/imports/destination-maldives.png"
 import pragueImage from "@/imports/destination-prague.png"
 import onboardingTravelersImage from "@/imports/onboarding-travelers-v1.png"
 import onboardingPreferencesImage from "@/imports/onboarding-preferences-v1.png"
-import onboardingPrioritiesImage from "@/imports/onboarding-priorities-v1.png"
+import onboardingPrioritiesImage from "@/imports/onboarding-priorities-v2.jpg"
 import { auth } from "./firebase"
 import { useVoiceTranscription } from "./useVoiceTranscription"
 import { completeOnboarding } from "./onboardingStore"
@@ -1802,7 +1802,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                   ))}
                 </div>
                 {!allPrioritiesAssigned && (
-                  <p className="mt-4 text-[14px] text-[#b4493e]">
+                  <p className="mt-4 text-[14px] text-[#777169]">
                     Choose a priority for every preference
                   </p>
                 )}
