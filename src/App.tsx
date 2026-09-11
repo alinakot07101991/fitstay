@@ -296,6 +296,7 @@ function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
         <button
           key={l}
           onClick={() => setLang(l)}
+          aria-pressed={lang === l}
           className={`px-2.5 sm:px-3 py-1.5 transition-colors duration-150 uppercase tracking-wider ${
             lang === l
               ? 'bg-ink text-white'
@@ -757,6 +758,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
     <div className="border-b border-ink/[0.09]">
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="w-full flex items-center justify-between gap-6 py-6 text-left group"
       >
         <span className="font-medium font-sans text-ink text-[15px] group-hover:text-coral transition-colors">{q}</span>
@@ -765,7 +767,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         >+</span>
       </button>
       {open && (
-        <p className="pb-6 text-ink/55 font-sans leading-relaxed text-[14px] pr-10">{a}</p>
+        <p className="motion-swap pb-6 text-ink/55 font-sans leading-relaxed text-[14px] pr-10">{a}</p>
       )}
     </div>
   )
@@ -1075,7 +1077,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
           <img src={aiBlob} alt="" className="w-24 h-24 object-contain mb-8 mx-auto" />
 
           {verificationEmail ? (
-            <div className="text-center" aria-live="polite">
+            <div key="verification-sent" className="motion-swap text-center" aria-live="polite">
               <h1 className="font-display italic text-ink leading-tight" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{isUA ? 'Підтвердьте email' : 'Check your email'}</h1>
               <p className="mt-4 text-[14px] leading-relaxed text-ink/55">{isUA ? 'Ми надіслали посилання для підтвердження на' : 'We sent a verification link to'}</p>
               <p className="mt-1 break-all text-[14px] font-semibold text-ink">{verificationEmail}</p>
@@ -1090,7 +1092,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
               </button>
             </div>
           ) : (
-            <>
+            <div key={mode} className="motion-swap">
               <h1 className="font-display italic text-ink leading-tight mb-3 text-center" style={{ fontSize: 'clamp(28px, 4vw, 38px)' }}>{title}</h1>
               <p className="mb-7 text-center text-[14px] leading-relaxed text-ink/50">{sub}</p>
 
@@ -1148,7 +1150,7 @@ function AuthPage({ lang, onBack }: { lang: Lang; onBack: () => void }) {
                 <button type="button" onClick={() => { setMode(isRegister ? 'login' : 'register'); setPassword(''); setFieldErrors({}); setPasswordValidationAttempted(false); setError('') }} className="text-ink font-medium hover:text-coral">{isRegister ? (isUA ? 'Увійти' : 'Log in') : (isUA ? 'Зареєструватися' : 'Create one')}</button>
               </p>
               {isRegister && <p className="text-center text-[12px] text-ink/30 mt-5 leading-relaxed">{isUA ? 'Продовжуючи, ви погоджуєтесь з умовами використання та політикою конфіденційності.' : 'By continuing you agree to our Terms of Service and Privacy Policy.'}</p>}
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -1493,11 +1495,11 @@ export default function App() {
   const goBack = () => { setPage('landing'); window.scrollTo(0, 0) }
 
   if (page === 'auth') {
-    return <AuthPage lang={lang} onBack={goBack} />
+    return <div key="auth" className="motion-page"><AuthPage lang={lang} onBack={goBack} /></div>
   }
 
   return (
-    <div className="bg-ivory text-ink min-h-screen font-sans">
+    <div key={`landing-${lang}`} className="motion-page bg-ivory text-ink min-h-screen font-sans">
       <Nav lang={lang} setLang={setLang} tx={tx} onAuth={goAuth} />
       <main>
         <Hero tx={tx} onAuth={goAuth} />

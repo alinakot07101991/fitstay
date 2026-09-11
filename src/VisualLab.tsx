@@ -338,7 +338,7 @@ function SearchHistoryModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] grid place-items-center bg-[#211d1a]/20 p-4 backdrop-blur-[2px]"
+      className="motion-backdrop fixed inset-0 z-[60] grid place-items-center bg-[#211d1a]/20 p-4 backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -347,7 +347,7 @@ function SearchHistoryModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="search-history-title"
-        className="w-full max-w-[680px] overflow-hidden rounded-[22px] bg-white shadow-[0_24px_70px_rgba(35,30,27,.22)] ring-1 ring-black/5"
+        className="motion-dialog w-full max-w-[680px] overflow-hidden rounded-[22px] bg-white shadow-[0_24px_70px_rgba(35,30,27,.22)] ring-1 ring-black/5"
       >
         <h2 id="search-history-title" className="sr-only">
           Search hotel checks
@@ -1349,12 +1349,12 @@ function Home({
         </Card>
       )}
       {templateModal && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/25 p-4">
+        <div className="motion-backdrop fixed inset-0 z-50 grid place-items-center bg-black/25 p-4">
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="compare-hotels-title"
-            className="w-full max-w-md rounded-[28px] bg-white p-7"
+            className="motion-dialog w-full max-w-md rounded-[28px] bg-white p-7"
           >
             <button
               onClick={() => setTemplateModal(false)}
@@ -1550,22 +1550,24 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
               {[1, 2, 3].map((segment) => (
                 <span
                   key={segment}
-                  className={`h-1.5 rounded-full ${
+                  className={`h-1.5 rounded-full transition-colors duration-300 ${
                     segment <= step ? "bg-[#f75b56]" : "bg-[#dedbd4]"
                   }`}
                 />
               ))}
             </div>
 
-            <p className="mt-8 text-[12px] font-medium tracking-[.18em] text-[#aaa59f]">
-              STEP {step} OF 3 · {stepMeta[step - 1][0]}
-            </p>
-            <h1 className="font-display mt-3 text-[32px] font-normal italic leading-[1.12] tracking-[-.035em]">
-              {stepMeta[step - 1][1]}
-            </h1>
+            <div key={`onboarding-heading-${step}`} className="motion-swap">
+              <p className="mt-8 text-[12px] font-medium tracking-[.18em] text-[#aaa59f]">
+                STEP {step} OF 3 · {stepMeta[step - 1][0]}
+              </p>
+              <h1 className="font-display mt-3 text-[32px] font-normal italic leading-[1.12] tracking-[-.035em]">
+                {stepMeta[step - 1][1]}
+              </h1>
+            </div>
 
             {step === 1 && (
-              <div className="mt-8 space-y-4">
+              <div className="motion-swap mt-8 space-y-4">
                 <section className="flex min-h-24 items-center justify-between gap-4 rounded-[24px] bg-white p-5">
                   <div>
                     <h2 className="text-[14px] font-semibold">Adults</h2>
@@ -1698,7 +1700,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
             )}
 
             {step === 2 && (
-              <div className="mt-3">
+              <div className="motion-swap mt-3">
                 <p className="text-[14px] text-[#918b84]">
                   Select at least 3 preferences
                 </p>
@@ -1759,7 +1761,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
             )}
 
             {step === 3 && (
-              <div className="mt-3">
+              <div className="motion-swap mt-3">
                 <p className="text-[14px] leading-relaxed text-[#918b84]">
                   Mark every preference as important or critical
                 </p>
@@ -1864,7 +1866,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
             src={stepImages[step - 1]}
             alt=""
             aria-hidden="true"
-            className="h-full w-full object-cover"
+            className="motion-media h-full w-full object-cover"
           />
         </div>
       </div>
@@ -2093,6 +2095,7 @@ function Analysis({ viewport, go }: { viewport: Viewport go: Go }) {
         <section className="overflow-hidden rounded-[25px] border bg-white">
           <button
             onClick={() => setOpen(!open)}
+            aria-expanded={open}
             className="flex min-h-20 w-full items-center gap-4 px-6 text-left"
           >
             <span className="interactive-icon-surface grid size-10 place-items-center rounded-full bg-[#fff0eb] text-[#e55e51]">
@@ -2107,7 +2110,7 @@ function Analysis({ viewport, go }: { viewport: Viewport go: Go }) {
             <Icon name="arrow" />
           </button>
           {open && (
-            <div className="border-t p-6 text-[12px]">
+            <div className="motion-swap border-t p-6 text-[12px]">
               ✓ Hotel identity confirmed
               <br />
               <br />✓ Official information checked
@@ -2535,12 +2538,12 @@ export default function VisualLab() {
         resolveDraft,
       }}
     >
-      <Preview
+      <div
         key={`${screen}-${screen === "home" ? homeInstance : 0}`}
-        screen={screen}
-        viewport={viewport}
-        go={navigate}
-      />
+        className="motion-page"
+      >
+        <Preview screen={screen} viewport={viewport} go={navigate} />
+      </div>
     </DraftContext.Provider>
   )
 
@@ -2599,6 +2602,7 @@ export default function VisualLab() {
             <button
               key={v}
               onClick={() => setViewport(v)}
+              aria-pressed={viewport === v}
               className={`min-h-9 rounded-full px-3 text-[10px] capitalize ${
                 viewport === v ? "bg-[#1c1917] text-white" : ""
               }`}
@@ -2620,6 +2624,7 @@ export default function VisualLab() {
                   <button
                     key={id}
                     onClick={() => setScreen(id)}
+                    aria-current={screen === id ? "page" : undefined}
                     className={`mb-1 block min-w-40 rounded-xl p-2.5 text-left xl:w-full ${
                       screen === id ? "bg-white ring-1 ring-black/10" : ""
                     }`}
