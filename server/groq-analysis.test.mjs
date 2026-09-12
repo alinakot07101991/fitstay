@@ -436,8 +436,49 @@ test("retries a transient non-JSON provider response once", async () => {
   assert.equal(calls, 2)
 })
 
+test("retries an oversized analysis once with a compact evidence set", async () => {
+  const largeEvidence = Array.from({ length: 24 }, (_, index) => ({
+    source: index % 2 ? "google_hotels" : "tripadvisor",
+    type: "review",
+    sourceId: `large-${index}`,
+    text: `Quiet room wifi breakfast ${"details ".repeat(180)}${index}`,
+  }))
+  let calls = 0
+  let compactPrompt = ""
+  const response = await handleGroqHotelAnalysis(
+    analysisRequest({ evidence: largeEvidence }),
+    "server-secret",
+    options(async (_input, init) => {
+      calls += 1
+      if (calls === 1)
+        return Response.json(
+          { error: { message: "Request too large for model context" } },
+          { status: 413 },
+        )
+      const body = JSON.parse(init.body)
+      compactPrompt = body.messages[2].content
+      const ids =
+        body.response_format.json_schema.schema.properties.preferences.items
+          .properties.positiveEvidenceIds.items.enum
+      const output = classification()
+      output.preferences = output.preferences.map((item, index) => ({
+        ...item,
+        positiveEvidenceIds: index === 0 ? [ids[0]] : [],
+        negativeEvidenceIds: [],
+      }))
+      return Response.json({
+        choices: [{ message: { content: JSON.stringify(output) } }],
+      })
+    }),
+  )
+  assert.equal(response.status, 200)
+  assert.equal(calls, 2)
+  assert.ok(compactPrompt.length < 15_000)
+  assert.equal((await response.json()).evidenceStats.evidenceItemsAnalyzed, 10)
+})
+
 test("uses conservative configuration defaults", () => {
   assert.equal(DEFAULT_GROQ_MODEL, "openai/gpt-oss-120b")
-  assert.equal(DEFAULT_GROQ_MAX_EVIDENCE_ITEMS, 30)
+  assert.equal(DEFAULT_GROQ_MAX_EVIDENCE_ITEMS, 20)
   assert.equal(DEFAULT_GROQ_DAILY_ANALYSIS_LIMIT, 20)
 })

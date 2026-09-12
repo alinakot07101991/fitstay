@@ -6,14 +6,16 @@ import {
 export const GROQ_CHAT_COMPLETIONS_ENDPOINT =
   "https://api.groq.com/openai/v1/chat/completions"
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
-export const DEFAULT_GROQ_MAX_EVIDENCE_ITEMS = 30
+export const DEFAULT_GROQ_MAX_EVIDENCE_ITEMS = 20
 export const DEFAULT_GROQ_DAILY_ANALYSIS_LIMIT = 20
 export const GROQ_ANALYSIS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 export const GROQ_ANALYSIS_VERSION = "fitstay-groq-analysis-v1"
 export const MATCH_SCORE_VERSION = "fitstay-score-2-2-1-v2"
 
-const MAX_CONFIGURED_EVIDENCE_ITEMS = 120
-const MAX_EVIDENCE_TEXT_CHARS = 1_200
+const MAX_CONFIGURED_EVIDENCE_ITEMS = 20
+const MAX_EVIDENCE_TEXT_CHARS = 900
+const FALLBACK_EVIDENCE_ITEMS = 10
+const FALLBACK_EVIDENCE_TEXT_CHARS = 600
 const MAX_SUMMARY_CHARS = 600
 const MAX_CACHE_ENTRIES = 200
 const REQUEST_TIMEOUT_MS = 45_000
@@ -342,14 +344,19 @@ function strictOutputSchema(preferences, evidenceIds) {
   }
 }
 
-export function buildGroqMessages(hotel, preferences, selectedEvidence) {
+export function buildGroqMessages(
+  hotel,
+  preferences,
+  selectedEvidence,
+  maxTextCharacters = MAX_EVIDENCE_TEXT_CHARS,
+) {
   const evidenceForPrompt = selectedEvidence.map((item) => ({
     evidenceId: item.evidenceId,
     source: item.source,
     type: item.type,
     sourceId: item.sourceId,
     title: item.title,
-    text: item.text?.slice(0, MAX_EVIDENCE_TEXT_CHARS) || null,
+    text: item.text?.slice(0, maxTextCharacters) || null,
     author: item.author,
     publishedAt: item.publishedAt,
     relevantPreferenceIds: item.relevantPreferenceIds,
@@ -761,6 +768,7 @@ async function groqCompletion({
   fetchImpl,
   sleep,
   stats,
+  allowRetry = true,
 }) {
   const body = {
     model,
@@ -778,7 +786,8 @@ async function groqCompletion({
     },
   }
   stats.inputCharacters = JSON.stringify(body).length
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const maximumAttempts = allowRetry ? 2 : 1
+  for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
     let response
@@ -803,7 +812,7 @@ async function groqCompletion({
         502,
         { retryable: true },
       )
-      if (attempt === 0) {
+      if (attempt === 0 && allowRetry) {
         stats.retries += 1
         await sleep(100)
         continue
@@ -820,7 +829,7 @@ async function groqCompletion({
     }
     if (!response.ok || payload.error) {
       const failure = mapGroqFailure(payload, response)
-      if (attempt === 0 && failure.retryable) {
+      if (attempt === 0 && allowRetry && failure.retryable) {
         stats.retries += 1
         await sleep(100)
         continue
@@ -850,6 +859,29 @@ async function groqCompletion({
     "Groq analysis is temporarily unavailable",
     502,
   )
+}
+
+function compactEvidenceForRetry(selected, preferences) {
+  const compact = []
+  const selectedIds = new Set()
+  const add = (item) => {
+    if (!item || selectedIds.has(item.evidenceId)) return
+    selectedIds.add(item.evidenceId)
+    compact.push(item)
+  }
+  for (const preference of preferences) {
+    add(
+      selected.find((item) =>
+        item.relevantPreferenceIds.includes(preference.id),
+      ),
+    )
+    if (compact.length >= FALLBACK_EVIDENCE_ITEMS) return compact
+  }
+  for (const item of selected) {
+    add(item)
+    if (compact.length >= FALLBACK_EVIDENCE_ITEMS) break
+  }
+  return compact
 }
 
 async function readCache(cache, key, now) {
@@ -1022,7 +1054,8 @@ export function createGroqAnalysisService(options) {
       try {
         stats.analysesToday = await readUsageCount(utcDay(timestamp))
         let classification
-        if (prepared.selected.length === 0) {
+        let analysisPrepared = prepared
+        if (analysisPrepared.selected.length === 0) {
           classification = allInsufficientClassification(input.preferences)
         } else {
           const reservation = await reserveUsage(utcDay(timestamp), timestamp)
@@ -1034,21 +1067,62 @@ export function createGroqAnalysisService(options) {
               429,
             )
           }
-          const evidenceIds = prepared.selected.map((item) => item.evidenceId)
-          const messages = buildGroqMessages(
-            input.hotel,
-            input.preferences,
-            prepared.selected,
+          let evidenceIds = analysisPrepared.selected.map(
+            (item) => item.evidenceId,
           )
-          const output = await groqCompletion({
-            apiKey,
-            model,
-            messages,
-            schema: strictOutputSchema(input.preferences, evidenceIds),
-            fetchImpl,
-            sleep,
-            stats,
-          })
+          let output
+          try {
+            output = await groqCompletion({
+              apiKey,
+              model,
+              messages: buildGroqMessages(
+                input.hotel,
+                input.preferences,
+                analysisPrepared.selected,
+              ),
+              schema: strictOutputSchema(input.preferences, evidenceIds),
+              fetchImpl,
+              sleep,
+              stats,
+            })
+          } catch (error) {
+            if (
+              !(error instanceof GroqAnalysisError) ||
+              error.code !== "GROQ_INPUT_TOO_LARGE" ||
+              analysisPrepared.selected.length <= FALLBACK_EVIDENCE_ITEMS
+            )
+              throw error
+            const compact = compactEvidenceForRetry(
+              analysisPrepared.selected,
+              input.preferences,
+            )
+            analysisPrepared = {
+              ...prepared,
+              selected: compact,
+              stats: {
+                ...prepared.stats,
+                evidenceItemsAnalyzed: compact.length,
+                evidenceLimitApplied: true,
+              },
+            }
+            evidenceIds = compact.map((item) => item.evidenceId)
+            stats.retries += 1
+            output = await groqCompletion({
+              apiKey,
+              model,
+              messages: buildGroqMessages(
+                input.hotel,
+                input.preferences,
+                compact,
+                FALLBACK_EVIDENCE_TEXT_CHARS,
+              ),
+              schema: strictOutputSchema(input.preferences, evidenceIds),
+              fetchImpl,
+              sleep,
+              stats,
+              allowRetry: false,
+            })
+          }
           classification = validateGroqStructuredOutput(
             output,
             input.preferences,
@@ -1058,7 +1132,7 @@ export function createGroqAnalysisService(options) {
         const result = buildHotelAnalysisResult({
           hotel: input.hotel,
           preferences: input.preferences,
-          prepared,
+          prepared: analysisPrepared,
           classification,
           providerErrors: input.providerErrors,
           model,
@@ -1069,7 +1143,7 @@ export function createGroqAnalysisService(options) {
         logger.info?.("[groq-analysis] completed", {
           model,
           hotel: input.hotel.name,
-          evidenceItems: prepared.selected.length,
+          evidenceItems: analysisPrepared.selected.length,
           inputCharacters: stats.inputCharacters,
           cache: "miss",
           retries: stats.retries,
