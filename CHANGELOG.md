@@ -27,6 +27,14 @@
 
 ## Історія
 
+### 2026-09-12 — Повна search history під час нового hotel search
+
+- Тип: Product / UX / Code
+- Статус: Погоджено
+- Зміна: ліва sidebar більше не замінює весь список одним поточним draft або active hotel. Під час нового пошуку вона показує всі збережені hotel checks у порядку від найновішого, додає поточний draft без дублювання і зберігає доступ до попередніх checks.
+- Причина: користувач має бачити повний контекст пошуків і переходити до попередніх hotel chats навіть під час створення нового check.
+- Вплив: змінено лише формування видимого списку в search history; Firestore/local persistence, hotel search flow та центральна область не змінені.
+
 ### 2026-09-12 — Додано Groq evidence analysis і scoring methodology 5/3/1
 
 - Тип: Product / Code / Data / Operations

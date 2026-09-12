@@ -112,6 +112,16 @@ function historyEntryFromRecord(record: HotelCheckRecord): HistoryEntry {
   ]
 }
 
+function mergeHistoryEntries(...groups: HistoryEntry[][]): HistoryEntry[] {
+  const seenHotels = new Set<string>()
+  return groups.flat().filter((entry) => {
+    const hotelKey = entry[1].trim().toLocaleLowerCase()
+    if (seenHotels.has(hotelKey)) return false
+    seenHotels.add(hotelKey)
+    return true
+  })
+}
+
 const groups: Array<{
   label: string
   items: Array<[ScreenId, string, string]>
@@ -471,16 +481,23 @@ function History({
     rhodesImage,
   ]
   const storedHistory = hotelChecks.map(historyEntryFromRecord)
-  const visibleHistory: HistoryEntry[] =
-    state === "empty" && storedHistory.length > 0
-      ? storedHistory
-      : state === "draft"
-        ? [draftEntry]
-        : state === "history-with-draft"
-          ? [draftEntry, ...history]
-          : state === "active"
-            ? [activeEntry]
-            : history
+  const visibleHistory: HistoryEntry[] = (() => {
+    if (state === "empty") return storedHistory
+    if (state === "draft") {
+      return mergeHistoryEntries([draftEntry], storedHistory)
+    }
+    if (state === "history-with-draft") {
+      return storedHistory.length > 0
+        ? mergeHistoryEntries([draftEntry], storedHistory)
+        : mergeHistoryEntries([draftEntry], history)
+    }
+    if (state === "active") {
+      return storedHistory.length > 0
+        ? storedHistory
+        : mergeHistoryEntries([activeEntry], history)
+    }
+    return storedHistory.length > 0 ? storedHistory : history
+  })()
   return (
     <>
       <aside className="flex min-h-[calc(100vh-70px)] flex-col border-r border-[#e7e3dd] bg-white/80 backdrop-blur-md">
