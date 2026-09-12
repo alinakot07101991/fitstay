@@ -34,37 +34,39 @@ export function createD1ProviderUsageStore(database, provider) {
     return initialization
   }
 
+  const getCount = async (dayUtc) => {
+    await ensureSchema()
+    const row = await database
+      .prepare(
+        "SELECT request_count FROM provider_daily_usage WHERE provider = ? AND day_utc = ?",
+      )
+      .bind(provider, dayUtc)
+      .first()
+    return Number.isFinite(Number(row?.request_count))
+      ? Number(row.request_count)
+      : 0
+  }
+
   return {
     async reserve(dayUtc, limit, timestamp = new Date().toISOString()) {
       await ensureSchema()
-      const row = await database
+      const result = await database
         .prepare(`INSERT INTO provider_daily_usage (
         provider, day_utc, request_count, updated_at
       ) VALUES (?, ?, 1, ?)
       ON CONFLICT(provider, day_utc) DO UPDATE SET
         request_count = provider_daily_usage.request_count + 1,
         updated_at = excluded.updated_at
-      WHERE provider_daily_usage.request_count < ?
-      RETURNING request_count`)
+      WHERE provider_daily_usage.request_count < ?`)
         .bind(provider, dayUtc, timestamp, limit)
-        .first()
+        .run()
 
-      if (row && Number.isFinite(Number(row.request_count))) {
-        return { allowed: true, count: Number(row.request_count) }
+      const count = await getCount(dayUtc)
+      return {
+        allowed: Number(result?.meta?.changes || 0) > 0,
+        count,
       }
-      return { allowed: false, count: await this.getCount(dayUtc) }
     },
-    async getCount(dayUtc) {
-      await ensureSchema()
-      const row = await database
-        .prepare(
-          "SELECT request_count FROM provider_daily_usage WHERE provider = ? AND day_utc = ?",
-        )
-        .bind(provider, dayUtc)
-        .first()
-      return Number.isFinite(Number(row?.request_count))
-        ? Number(row.request_count)
-        : 0
-    },
+    getCount,
   }
 }

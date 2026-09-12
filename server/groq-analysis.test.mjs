@@ -339,6 +339,27 @@ test("enforces the configurable daily analysis limit", async () => {
   assert.equal((await second.json()).error.code, "GROQ_DEV_LIMIT_REACHED")
 })
 
+test("returns a controlled error when persistent usage tracking fails", async () => {
+  const response = await handleGroqHotelAnalysis(
+    analysisRequest(),
+    "server-secret",
+    options(successfulGroq(), {
+      usageStore: {
+        async getCount() {
+          throw new Error("D1 statement failed")
+        },
+        async reserve() {
+          throw new Error("D1 statement failed")
+        },
+      },
+    }),
+  )
+  assert.equal(response.status, 503)
+  const payload = await response.json()
+  assert.equal(payload.error.code, "GROQ_USAGE_TRACKING_UNAVAILABLE")
+  assert.equal("matchScore" in payload, false)
+})
+
 test("maps invalid API keys without returning partial score data", async () => {
   const response = await handleGroqHotelAnalysis(
     analysisRequest(),

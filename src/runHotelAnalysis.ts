@@ -21,8 +21,24 @@ export type HotelAnalysisProgress = "hotel_information" | "guest_feedback" | "pr
 
 export type CompletedHotelAnalysis = {
   result: HotelAnalysisResult
-  providerErrors: Array<{ provider: string code: string message: string }>
+  providerErrors: Array<{
+    provider: string
+    code: string
+    message: string
+  }>
 }
+
+type ProviderError = CompletedHotelAnalysis["providerErrors"][number]
+type ReviewEvidenceCollection = {
+  evidence: HotelAnalysisEvidence[]
+  providerErrors: ProviderError[]
+}
+
+const REVIEW_EVIDENCE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1_000
+const reviewEvidenceCache = new Map<string, {
+  expiresAt: number
+  promise: Promise<ReviewEvidenceCollection>
+}>()
 
 function providerError(provider: string, error: unknown) {
   const value = error as { code?: string message?: string }
@@ -33,32 +49,20 @@ function providerError(provider: string, error: unknown) {
   }
 }
 
-export async function runHotelAnalysis(input: {
-  hotel: CanonicalHotelForAnalysis
-  preferences: HotelAnalysisPreference[]
-  onProgress?: (stage: HotelAnalysisProgress) => void
-  signal?: AbortSignal
-}): Promise<CompletedHotelAnalysis> {
-  const { hotel, preferences, signal } = input
-  const providerErrors: CompletedHotelAnalysis["providerErrors"] = []
-  const evidence: HotelAnalysisEvidence[] = []
+function normalizedHotelCacheKey(hotel: CanonicalHotelForAnalysis) {
+  return [hotel.placeId, hotel.name, hotel.city, hotel.country]
+    .map((value) =>
+      String(value || "")
+        .trim()
+        .toLocaleLowerCase(),
+    )
+    .join("|")
+}
 
-  const advance = async (stage: HotelAnalysisProgress) => {
-    input.onProgress?.(stage)
-    await new Promise((resolve) => window.setTimeout(resolve, 420))
-  }
-
-  await advance("hotel_information")
-  evidence.push({
-    evidenceId: `google-place:${hotel.placeId || hotel.name}`,
-    source: "google_places",
-    type: "hotel_information",
-    sourceId: hotel.placeId,
-    title: hotel.name,
-    text: `${hotel.name}, ${hotel.city}, ${hotel.country}`,
-  })
-
-  await advance("guest_feedback")
+async function collectReviewEvidence(
+  hotel: CanonicalHotelForAnalysis,
+  signal?: AbortSignal,
+): Promise<ReviewEvidenceCollection> {
   const reviewResults = await Promise.allSettled([
     fetchGoogleHotelsReviews({
       hotelName: hotel.name,
@@ -73,6 +77,8 @@ export async function runHotelAnalysis(input: {
       signal,
     }),
   ])
+  const evidence: HotelAnalysisEvidence[] = []
+  const providerErrors: ProviderError[] = []
 
   const googleReviews = reviewResults[0]
   if (googleReviews.status === "fulfilled") {
@@ -120,6 +126,68 @@ export async function runHotelAnalysis(input: {
   } else {
     providerErrors.push(providerError("tripadvisor", tripadvisorReviews.reason))
   }
+
+  return { evidence, providerErrors }
+}
+
+async function getReviewEvidence(
+  hotel: CanonicalHotelForAnalysis,
+  signal?: AbortSignal,
+) {
+  const key = normalizedHotelCacheKey(hotel)
+  const now = Date.now()
+  const cached = reviewEvidenceCache.get(key)
+  if (cached && cached.expiresAt > now) return cached.promise
+  if (cached) reviewEvidenceCache.delete(key)
+
+  const promise = collectReviewEvidence(hotel, signal).then(
+    (result) => {
+      if (result.evidence.length === 0 || result.providerErrors.length > 0) {
+        reviewEvidenceCache.delete(key)
+      }
+      return result
+    },
+    (error) => {
+      reviewEvidenceCache.delete(key)
+      throw error
+    },
+  )
+  reviewEvidenceCache.set(key, {
+    expiresAt: now + REVIEW_EVIDENCE_CACHE_TTL_MS,
+    promise,
+  })
+  return promise
+}
+
+export async function runHotelAnalysis(input: {
+  hotel: CanonicalHotelForAnalysis
+  preferences: HotelAnalysisPreference[]
+  onProgress?: (stage: HotelAnalysisProgress) => void
+  signal?: AbortSignal
+}): Promise<CompletedHotelAnalysis> {
+  const { hotel, preferences, signal } = input
+  const providerErrors: CompletedHotelAnalysis["providerErrors"] = []
+  const evidence: HotelAnalysisEvidence[] = []
+
+  const advance = async (stage: HotelAnalysisProgress) => {
+    input.onProgress?.(stage)
+    await new Promise((resolve) => window.setTimeout(resolve, 420))
+  }
+
+  await advance("hotel_information")
+  evidence.push({
+    evidenceId: `google-place:${hotel.placeId || hotel.name}`,
+    source: "google_places",
+    type: "hotel_information",
+    sourceId: hotel.placeId,
+    title: hotel.name,
+    text: `${hotel.name}, ${hotel.city}, ${hotel.country}`,
+  })
+
+  await advance("guest_feedback")
+  const reviewCollection = await getReviewEvidence(hotel, signal)
+  evidence.push(...reviewCollection.evidence)
+  providerErrors.push(...reviewCollection.providerErrors)
 
   await advance("preference_matching")
   const discoveryResults = await Promise.allSettled([

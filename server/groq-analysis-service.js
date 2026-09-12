@@ -894,6 +894,42 @@ export function createGroqAnalysisService(options) {
     ((milliseconds) =>
       new Promise((resolve) => setTimeout(resolve, milliseconds)))
 
+  async function readUsageCount(dayUtc) {
+    try {
+      return await usageStore.getCount(dayUtc)
+    } catch (error) {
+      logger.warn?.("[groq-analysis] usage tracking failed", {
+        operation: "read",
+        failureType: error?.name || "Error",
+      })
+      throw new GroqAnalysisError(
+        "GROQ_USAGE_TRACKING_UNAVAILABLE",
+        "Hotel analysis usage tracking is temporarily unavailable",
+        503,
+      )
+    }
+  }
+
+  async function reserveUsage(dayUtc, timestamp) {
+    try {
+      return await usageStore.reserve(
+        dayUtc,
+        dailyAnalysisLimit,
+        new Date(timestamp).toISOString(),
+      )
+    } catch (error) {
+      logger.warn?.("[groq-analysis] usage tracking failed", {
+        operation: "reserve",
+        failureType: error?.name || "Error",
+      })
+      throw new GroqAnalysisError(
+        "GROQ_USAGE_TRACKING_UNAVAILABLE",
+        "Hotel analysis usage tracking is temporarily unavailable",
+        503,
+      )
+    }
+  }
+
   async function analyzeHotelPreferences(input) {
     const startedAt = now()
     const prepared = prepareEvidence(
@@ -940,7 +976,7 @@ export function createGroqAnalysisService(options) {
     const timestamp = now()
     const cached = await readCache(cache, cacheKey, timestamp)
     if (cached) {
-      const analysesToday = await usageStore.getCount(utcDay(timestamp))
+      const analysesToday = await readUsageCount(utcDay(timestamp))
       logger.info?.("[groq-analysis] completed", {
         model,
         hotel: input.hotel.name,
@@ -958,18 +994,15 @@ export function createGroqAnalysisService(options) {
         groqRequests: 0,
         retries: 0,
         inputCharacters: 0,
-        analysesToday: await usageStore.getCount(utcDay(timestamp)),
+        analysesToday: 0,
       }
       try {
+        stats.analysesToday = await readUsageCount(utcDay(timestamp))
         let classification
         if (prepared.selected.length === 0) {
           classification = allInsufficientClassification(input.preferences)
         } else {
-          const reservation = await usageStore.reserve(
-            utcDay(timestamp),
-            dailyAnalysisLimit,
-            new Date(timestamp).toISOString(),
-          )
+          const reservation = await reserveUsage(utcDay(timestamp), timestamp)
           stats.analysesToday = reservation.count
           if (!reservation.allowed) {
             throw new GroqAnalysisError(
