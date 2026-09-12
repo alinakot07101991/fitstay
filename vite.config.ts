@@ -11,6 +11,10 @@ import { handleGoogleHotelsReviews } from './server/serpapi-google-hotels.js'
 import { handleGooglePlacesHotelResolution } from './server/google-places.js'
 import { handleTavilyHotelEvidence } from './server/tavily-evidence.js'
 import { handleYouTubeHotelEvidence } from './server/youtube-evidence.js'
+import {
+  handleGroqHotelAnalysis,
+  MAX_GROQ_ANALYSIS_REQUEST_BYTES,
+} from './server/groq-analysis.js'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -35,6 +39,12 @@ export default defineConfig(({ mode }) => {
       googlePlacesHotelResolutionDev(environment.GOOGLE_PLACES_API_KEY),
       tavilyEvidenceDev(environment.TAVILY_API_KEY),
       youtubeEvidenceDev(environment.YOUTUBE_API_KEY, environment.YOUTUBE_DAILY_REQUEST_LIMIT),
+      groqHotelAnalysisDev({
+        apiKey: environment.GROQ_API_KEY,
+        model: environment.GROQ_MODEL,
+        maxEvidenceItems: environment.GROQ_MAX_EVIDENCE_ITEMS,
+        dailyAnalysisLimit: environment.GROQ_DAILY_ANALYSIS_LIMIT,
+      }),
       sitesStaticWorker(),
       figmaSiteConfiguration(siteConfiguration),
       figmaErrorOverlayReplay(),
@@ -429,6 +439,78 @@ function youtubeEvidenceDev(apiKey?: string, dailyLimit?: string): Plugin {
   }
 }
 
+/** Runs explicit hotel evidence analysis without exposing Groq configuration. */
+function groqHotelAnalysisDev(configuration: {
+  apiKey?: string
+  model?: string
+  maxEvidenceItems?: string
+  dailyAnalysisLimit?: string
+}): Plugin {
+  return {
+    name: 'groq-hotel-analysis-dev',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/api/hotel-analysis', async (req, res) => {
+        const sendResponse = async (response: Response) => {
+          res.statusCode = response.status
+          response.headers.forEach((value, key) => res.setHeader(key, value))
+          res.end(Buffer.from(await response.arrayBuffer()))
+        }
+
+        try {
+          const chunks: Buffer[] = []
+          let receivedBytes = 0
+          for await (const chunk of req) {
+            const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+            receivedBytes += buffer.length
+            if (receivedBytes > MAX_GROQ_ANALYSIS_REQUEST_BYTES) {
+              await sendResponse(new Response(
+                JSON.stringify({
+                  status: 'error',
+                  error: {
+                    code: 'GROQ_INPUT_TOO_LARGE',
+                    message: 'The hotel evidence request is too large',
+                  },
+                }),
+                { status: 413, headers: { 'Content-Type': 'application/json; charset=utf-8' } },
+              ))
+              return
+            }
+            chunks.push(buffer)
+          }
+
+          const request = new Request('http://localhost/api/hotel-analysis', {
+            method: req.method,
+            headers: {
+              'content-type': req.headers['content-type'] || 'application/json',
+              'content-length': String(receivedBytes),
+            },
+            body: req.method === 'GET' || req.method === 'HEAD'
+              ? undefined
+              : new Uint8Array(Buffer.concat(chunks)),
+          })
+          await sendResponse(await handleGroqHotelAnalysis(request, configuration.apiKey, {
+            model: configuration.model,
+            maxEvidenceItems: configuration.maxEvidenceItems,
+            dailyAnalysisLimit: configuration.dailyAnalysisLimit,
+          }))
+        } catch {
+          await sendResponse(new Response(
+            JSON.stringify({
+              status: 'error',
+              error: {
+                code: 'GROQ_PROVIDER_ERROR',
+                message: 'The hotel analysis could not be completed',
+              },
+            }),
+            { status: 502, headers: { 'Content-Type': 'application/json; charset=utf-8' } },
+          ))
+        }
+      })
+    },
+  }
+}
+
 /** Emits the Cloudflare Worker entrypoint required by Sites, including private API proxies. */
 function sitesStaticWorker(): Plugin {
   let root = process.cwd()
@@ -445,13 +527,17 @@ import { handleGooglePlacesHotelResolution } from './google-places.js'
 import { handleTavilyHotelEvidence } from './tavily-evidence.js'
 import { handleYouTubeHotelEvidence } from './youtube-evidence.js'
 import { createD1YouTubeUsageStore } from './youtube-usage-store.js'
+import { handleGroqHotelAnalysis } from './groq-analysis.js'
+import { createD1ProviderUsageStore } from './provider-usage-store.js'
 
 const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
 const GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 const TAVILY_CACHE_SECONDS = 7 * 24 * 60 * 60
 const YOUTUBE_CACHE_SECONDS = 7 * 24 * 60 * 60
+const GROQ_ANALYSIS_CACHE_SECONDS = 7 * 24 * 60 * 60
 let youtubeUsageStore
+let groqAnalysisUsageStore
 
 async function tavilyCacheRequest(key) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key))
@@ -504,6 +590,33 @@ const youtubeEvidenceCache = {
   },
   async delete(key) {
     return caches.default.delete(await youtubeCacheRequest(key))
+  },
+}
+
+async function groqAnalysisCacheRequest(key) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key))
+  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return new Request('https://fitstay.internal/cache/groq-analysis/' + hash)
+}
+
+const groqAnalysisCache = {
+  async get(key) {
+    const response = await caches.default.match(await groqAnalysisCacheRequest(key))
+    return response ? response.json() : null
+  },
+  async set(key, value) {
+    await caches.default.put(
+      await groqAnalysisCacheRequest(key),
+      new Response(JSON.stringify(value), {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'public, max-age=' + GROQ_ANALYSIS_CACHE_SECONDS,
+        },
+      }),
+    )
+  },
+  async delete(key) {
+    return caches.default.delete(await groqAnalysisCacheRequest(key))
   },
 }
 
@@ -583,6 +696,16 @@ export default {
         usageStore: youtubeUsageStore,
       })
     }
+    if (url.pathname === '/api/hotel-analysis') {
+      groqAnalysisUsageStore ||= createD1ProviderUsageStore(env.DB, 'groq_analysis')
+      return handleGroqHotelAnalysis(request, env.GROQ_API_KEY, {
+        model: env.GROQ_MODEL,
+        maxEvidenceItems: env.GROQ_MAX_EVIDENCE_ITEMS,
+        dailyAnalysisLimit: env.GROQ_DAILY_ANALYSIS_LIMIT,
+        cache: groqAnalysisCache,
+        usageStore: groqAnalysisUsageStore,
+      })
+    }
     const response = await env.ASSETS.fetch(request)
     if (response.status !== 404) return response
     return env.ASSETS.fetch(new Request(new URL('/', request.url), request))
@@ -626,6 +749,18 @@ export default {
       await copyFile(
         path.resolve(root, 'server/youtube-usage-store.js'),
         path.resolve(workerDirectory, 'youtube-usage-store.js'),
+      )
+      await copyFile(
+        path.resolve(root, 'server/provider-usage-store.js'),
+        path.resolve(workerDirectory, 'provider-usage-store.js'),
+      )
+      await copyFile(
+        path.resolve(root, 'server/groq-analysis.js'),
+        path.resolve(workerDirectory, 'groq-analysis.js'),
+      )
+      await copyFile(
+        path.resolve(root, 'server/groq-analysis-service.js'),
+        path.resolve(workerDirectory, 'groq-analysis-service.js'),
       )
     },
   }

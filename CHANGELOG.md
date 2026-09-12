@@ -27,6 +27,15 @@
 
 ## Історія
 
+### 2026-09-12 — Додано Groq evidence analysis і scoring methodology 5/3/1
+
+- Тип: Product / Code / Data / Operations
+- Статус: Погоджено
+- Зміна: додано server-only Groq analysis layer для класифікації вже зібраного hotel evidence за кожною user preference через strict Structured Outputs. Затверджено нову versioned scoring formula: Critical `5`, Important `3`, Nice to have `1`; status values `1 / 0.75 / 0.5 / 0.25 / 0`, а `insufficient_evidence` виключається з numerator і denominator. Match Score обчислює лише application code; Groq не генерує відсоток.
+- Причина: перетворити traceable multi-provider evidence на персоналізовані, перевірювані висновки без prior hotel knowledge, unsupported claims або змішування confidence з percentage.
+- Артефакти: `server/groq-analysis-service.js`, `server/groq-analysis.js`, declarations, `server/groq-analysis.test.mjs`, `src/hotelAnalysis.ts`, shared provider usage store, `vite.config.ts`, `.env.example`, Sites environment і runtime cache.
+- Вплив: один uncached analysis використовує максимум один Groq request плюс один transient retry; до model context потрапляє максимум 30 source-diverse evidence items, completed results кешуються на 7 днів, atomic D1 limit має default `20` analyses per UTC day. UI та retrieval providers не змінено.
+
 ### 2026-09-12 — Інтегровано YouTube hotel evidence provider
 
 - Тип: Code / Data / Operations
