@@ -452,11 +452,13 @@ export function HotelAnalysisResultView({
   result,
   preferenceLabels,
   onCompare,
+  onRetry,
 }: {
   hotelName: string
   result: HotelAnalysisResult
   preferenceLabels: Record<string, string>
   onCompare: () => void
+  onRetry: () => void
 }) {
   const [saved, setSaved] = useState(false)
   const verdict = verdictFor(result)
@@ -465,9 +467,7 @@ export function HotelAnalysisResultView({
     ["strong_match", "match"].includes(item.status),
   )
   const risks = result.preferences.filter((item) =>
-    ["mixed", "mismatch", "strong_mismatch", "insufficient_evidence"].includes(
-      item.status,
-    ),
+    ["mixed", "mismatch", "strong_mismatch"].includes(item.status),
   )
   const checked = result.preferences.filter(
     (item) => item.status !== "insufficient_evidence",
@@ -653,14 +653,25 @@ export function HotelAnalysisResultView({
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          data-variant="primary"
-          onClick={() => setSaved(true)}
-          className="rounded-full bg-coral px-6 py-3 text-[12px] font-semibold text-white"
-        >
-          {saved ? "Saved" : "Save hotel"}
-        </button>
+        {verdict.label === "Not enough data" ? (
+          <button
+            type="button"
+            data-variant="primary"
+            onClick={onRetry}
+            className="rounded-full bg-coral px-6 py-3 text-[12px] font-semibold text-white"
+          >
+            Check again
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-variant="primary"
+            onClick={() => setSaved(true)}
+            className="rounded-full bg-coral px-6 py-3 text-[12px] font-semibold text-white"
+          >
+            {saved ? "Saved" : "Save hotel"}
+          </button>
+        )}
         <button
           type="button"
           onClick={onCompare}

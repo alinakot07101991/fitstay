@@ -79,7 +79,7 @@ export type GroqAnalysisCache = {
 
 export declare const GROQ_CHAT_COMPLETIONS_ENDPOINT: string
 export declare const DEFAULT_GROQ_MODEL: "openai/gpt-oss-120b"
-export declare const DEFAULT_GROQ_MAX_EVIDENCE_ITEMS: 20
+export declare const DEFAULT_GROQ_MAX_EVIDENCE_ITEMS: 30
 export declare const DEFAULT_GROQ_DAILY_ANALYSIS_LIMIT: 20
 export declare const GROQ_ANALYSIS_CACHE_TTL_MS: number
 export declare const GROQ_ANALYSIS_VERSION: string
@@ -107,6 +107,7 @@ export declare function buildGroqMessages(
   preferences: AnalysisPreference[],
   evidence: Array<Record<string, unknown>>,
   maxTextCharacters?: number,
+  corpusEvidence?: Array<Record<string, unknown>>,
 ): Array<{ role: "system" | "user"; content: string }>
 export declare function validateGroqStructuredOutput(
   value: unknown,

@@ -1424,6 +1424,7 @@ function Home({
                     result={analysisResult}
                     preferenceLabels={analysisPreferenceLabels}
                     onCompare={() => go("alternative")}
+                    onRetry={() => void retryAnalysis()}
                   />
                 )}
 

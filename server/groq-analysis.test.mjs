@@ -208,6 +208,43 @@ test("prepares diverse evidence, removes duplicates and enforces the cap", () =>
   assert.equal(new Set(prepared.selected.map((item) => item.source)).size, 2)
 })
 
+test("balances preference coverage without over-allocating sparse web sources", () => {
+  const preferenceEvidence = preferences.flatMap((preference) =>
+    Array.from({ length: 12 }, (_, index) => ({
+      source: "google_hotels",
+      type: "review",
+      sourceId: `${preference.id}-${index}`,
+      text: `${preference.label} signal from guest ${index}`,
+      publishedAt: `2026-08-${String((index % 9) + 1).padStart(2, "0")}T10:00:00Z`,
+    })),
+  )
+  const webEvidence = Array.from({ length: 6 }, (_, index) => ({
+    source: "web",
+    provider: "tavily",
+    domain: `source-${index}.example`,
+    type: "article",
+    sourceId: `web-${index}`,
+    text: `General hotel information ${index}`,
+  }))
+  const prepared = prepareEvidence(
+    [...preferenceEvidence, ...webEvidence],
+    preferences,
+    30,
+  )
+  assert.equal(prepared.selected.length, 30)
+  assert.ok(
+    prepared.selected.filter((item) => item.source === "google_hotels")
+      .length >= 27,
+  )
+  for (const preference of preferences) {
+    assert.ok(
+      prepared.selected.filter((item) =>
+        item.relevantPreferenceIds.includes(preference.id),
+      ).length >= 9,
+    )
+  }
+})
+
 test("validates every structured preference and rejects invented evidence IDs", () => {
   const evidenceIds = [
     "google_hotels:review:review-1",
@@ -437,24 +474,27 @@ test("retries a transient non-JSON provider response once", async () => {
 })
 
 test("retries an oversized analysis once with a compact evidence set", async () => {
-  const largeEvidence = Array.from({ length: 24 }, (_, index) => ({
+  const largeEvidence = Array.from({ length: 30 }, (_, index) => ({
     source: index % 2 ? "google_hotels" : "tripadvisor",
     type: "review",
     sourceId: `large-${index}`,
     text: `Quiet room wifi breakfast ${"details ".repeat(180)}${index}`,
   }))
   let calls = 0
+  let initialRequestLength = 0
   let compactPrompt = ""
   const response = await handleGroqHotelAnalysis(
     analysisRequest({ evidence: largeEvidence }),
     "server-secret",
     options(async (_input, init) => {
       calls += 1
-      if (calls === 1)
+      if (calls === 1) {
+        initialRequestLength = init.body.length
         return Response.json(
           { error: { message: "Request too large for model context" } },
           { status: 413 },
         )
+      }
       const body = JSON.parse(init.body)
       compactPrompt = body.messages[2].content
       const ids =
@@ -473,12 +513,13 @@ test("retries an oversized analysis once with a compact evidence set", async () 
   )
   assert.equal(response.status, 200)
   assert.equal(calls, 2)
+  assert.ok(initialRequestLength < 30_000)
   assert.ok(compactPrompt.length < 15_000)
-  assert.equal((await response.json()).evidenceStats.evidenceItemsAnalyzed, 10)
+  assert.equal((await response.json()).evidenceStats.evidenceItemsAnalyzed, 15)
 })
 
 test("uses conservative configuration defaults", () => {
   assert.equal(DEFAULT_GROQ_MODEL, "openai/gpt-oss-120b")
-  assert.equal(DEFAULT_GROQ_MAX_EVIDENCE_ITEMS, 20)
+  assert.equal(DEFAULT_GROQ_MAX_EVIDENCE_ITEMS, 30)
   assert.equal(DEFAULT_GROQ_DAILY_ANALYSIS_LIMIT, 20)
 })
