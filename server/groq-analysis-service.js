@@ -10,7 +10,7 @@ export const DEFAULT_GROQ_MAX_EVIDENCE_ITEMS = 30
 export const DEFAULT_GROQ_DAILY_ANALYSIS_LIMIT = 20
 export const GROQ_ANALYSIS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 export const GROQ_ANALYSIS_VERSION = "fitstay-groq-analysis-v1"
-export const MATCH_SCORE_VERSION = "fitstay-score-5-3-1-v1"
+export const MATCH_SCORE_VERSION = "fitstay-score-2-2-1-v2"
 
 const MAX_CONFIGURED_EVIDENCE_ITEMS = 120
 const MAX_EVIDENCE_TEXT_CHARS = 1_200
@@ -18,10 +18,7 @@ const MAX_SUMMARY_CHARS = 600
 const MAX_CACHE_ENTRIES = 200
 const REQUEST_TIMEOUT_MS = 45_000
 const MAX_REFERENCES_PER_STANCE = 8
-const STRICT_MODELS = new Set([
-  "openai/gpt-oss-20b",
-  "openai/gpt-oss-120b",
-])
+const STRICT_MODELS = new Set(["openai/gpt-oss-20b", "openai/gpt-oss-120b"])
 const STATUSES = new Set([
   "strong_match",
   "match",
@@ -32,15 +29,14 @@ const STATUSES = new Set([
 ])
 const CONFIDENCES = new Set(["high", "medium", "low"])
 const PRIORITY_WEIGHTS = {
-  critical: 5,
-  important: 3,
+  critical: 2,
+  important: 2,
   nice_to_have: 1,
 }
 const STATUS_VALUES = {
   strong_match: 1,
-  match: 0.75,
-  mixed: 0.5,
-  mismatch: 0.25,
+  match: 1,
+  mismatch: 0,
   strong_mismatch: 0,
 }
 const CONFIDENCE_RANK = { low: 0, medium: 1, high: 2 }
@@ -121,10 +117,30 @@ function preferenceTerms(label) {
       .filter((term) => term.length > 2 && !GENERIC_WORDS.has(term)),
   )
   const expansions = [
-    [/quiet|noise|sound|sleep|loud/, ["quiet", "noise", "noisy", "sound", "sleep", "loud"]],
-    [/wi.?fi|internet|connect/, ["wifi", "internet", "connection", "connectivity"]],
-    [/elevator|lift|access|wheelchair|step/, ["elevator", "lift", "accessible", "accessibility", "wheelchair", "stairs", "step"]],
-    [/breakfast|food|meal|dining/, ["breakfast", "food", "meal", "restaurant", "dining"]],
+    [
+      /quiet|noise|sound|sleep|loud/,
+      ["quiet", "noise", "noisy", "sound", "sleep", "loud"],
+    ],
+    [
+      /wi.?fi|internet|connect/,
+      ["wifi", "internet", "connection", "connectivity"],
+    ],
+    [
+      /elevator|lift|access|wheelchair|step/,
+      [
+        "elevator",
+        "lift",
+        "accessible",
+        "accessibility",
+        "wheelchair",
+        "stairs",
+        "step",
+      ],
+    ],
+    [
+      /breakfast|food|meal|dining/,
+      ["breakfast", "food", "meal", "restaurant", "dining"],
+    ],
     [/clean|hygiene/, ["clean", "cleanliness", "dirty", "hygiene"]],
     [/bed|mattress|sleep/, ["bed", "beds", "mattress", "sleep", "comfortable"]],
     [/pool|swim/, ["pool", "swimming"]],
@@ -132,7 +148,10 @@ function preferenceTerms(label) {
     [/pet|dog|animal/, ["pet", "pets", "dog", "dogs", "animal"]],
     [/family|child|kid/, ["family", "children", "child", "kids", "kid"]],
     [/service|staff/, ["service", "staff", "reception", "housekeeping"]],
-    [/location|transport|walk/, ["location", "transport", "walk", "walking", "metro", "station"]],
+    [
+      /location|transport|walk/,
+      ["location", "transport", "walk", "walking", "metro", "station"],
+    ],
   ]
   for (const [pattern, related] of expansions) {
     if (pattern.test(normalized)) for (const term of related) terms.add(term)
@@ -182,7 +201,9 @@ function normalizedEvidenceId(item, index) {
   const source = stringOrNull(item.source, 100) || "unknown"
   const type = stringOrNull(item.type, 100) || "evidence"
   const sourceId = stringOrNull(item.sourceId, 300)
-  return sourceId ? `${source}:${type}:${sourceId}` : `${source}:${type}:${index}`
+  return sourceId
+    ? `${source}:${type}:${sourceId}`
+    : `${source}:${type}:${index}`
 }
 
 export function prepareEvidence(evidenceInput, preferences, maxItems) {
@@ -287,7 +308,10 @@ function strictOutputSchema(preferences, evidenceIds) {
         items: {
           type: "object",
           properties: {
-            preferenceId: { type: "string", enum: preferences.map((item) => item.id) },
+            preferenceId: {
+              type: "string",
+              enum: preferences.map((item) => item.id),
+            },
             status: { type: "string", enum: [...STATUSES] },
             confidence: { type: "string", enum: [...CONFIDENCES] },
             summary: { type: "string" },
@@ -409,7 +433,10 @@ export function validateGroqStructuredOutput(value, preferences, evidenceIds) {
       negativeEvidenceIds,
     }
   })
-  if (seen.size !== expectedIds.size || value.preferences.length !== expectedIds.size) {
+  if (
+    seen.size !== expectedIds.size ||
+    value.preferences.length !== expectedIds.size
+  ) {
     throw new GroqAnalysisError(
       "GROQ_SCHEMA_VALIDATION_FAILED",
       "Groq did not analyze every preference exactly once",
@@ -429,7 +456,15 @@ export function calculateMatchScore(preferences, classifications) {
     const preference = preferenceById.get(classification.preferenceId)
     const value = STATUS_VALUES[classification.status]
     if (!preference || value === undefined) continue
-    const weight = PRIORITY_WEIGHTS[normalizePreferencePriority(preference.priority)]
+    if (classification.confidence === "low") continue
+    if (
+      preference.priority === "critical" &&
+      classification.confidence !== "high"
+    ) {
+      continue
+    }
+    const weight =
+      PRIORITY_WEIGHTS[normalizePreferencePriority(preference.priority)]
     achieved += weight * value
     available += weight
     evaluatedPreferenceCount += 1
@@ -450,29 +485,50 @@ function cappedConfidence(requested, cap) {
 
 function isRecent(publishedAt, now) {
   const timestamp = Date.parse(publishedAt || "")
-  return Number.isFinite(timestamp) && now - timestamp <= 24 * 30.5 * 24 * 60 * 60 * 1000
+  return (
+    Number.isFinite(timestamp) &&
+    now - timestamp <= 24 * 30.5 * 24 * 60 * 60 * 1000
+  )
 }
 
 function confidenceCapForPreference(items, status, now) {
   if (status === "insufficient_evidence") return "low"
   const sourceCount = new Set(items.map((item) => item.sourceIdentity)).size
-  const recentCount = items.filter((item) => isRecent(item.publishedAt, now)).length
-  if (items.length >= 20 && recentCount >= 3 && sourceCount >= 1 && status !== "mixed") {
+  const recentCount = items.filter((item) =>
+    isRecent(item.publishedAt, now),
+  ).length
+  if (
+    items.length >= 20 &&
+    recentCount >= 3 &&
+    sourceCount >= 1 &&
+    status !== "mixed"
+  ) {
     return "high"
   }
   if (items.length >= 10) return "medium"
   return "low"
 }
 
-function overallConfidenceCap(evidenceCount, sourceCount, classifications, providerErrors) {
-  let cap = evidenceCount >= 20 && sourceCount >= 2 ? "high" : evidenceCount >= 10 ? "medium" : "low"
+function overallConfidenceCap(
+  evidenceCount,
+  sourceCount,
+  classifications,
+  providerErrors,
+) {
+  let cap =
+    evidenceCount >= 20 && sourceCount >= 2
+      ? "high"
+      : evidenceCount >= 10
+        ? "medium"
+        : "low"
   if (providerErrors.length > 0) cap = cappedConfidence(cap, "medium")
   if (classifications.some((item) => item.status === "mixed")) {
     cap = cappedConfidence(cap, "medium")
   }
   if (
     classifications.some(
-      (item) => item.priority === "critical" && item.status === "insufficient_evidence",
+      (item) =>
+        item.priority === "critical" && item.status === "insufficient_evidence",
     )
   ) {
     cap = "low"
@@ -538,7 +594,9 @@ export function buildHotelAnalysisResult({
     if (item.relevantPreferenceIds.length > 0) relevantIds.add(item.evidenceId)
   }
   for (const id of referencedIds) relevantIds.add(id)
-  const sourcesAnalyzed = [...new Set(prepared.selected.map((item) => item.source))]
+  const sourcesAnalyzed = [
+    ...new Set(prepared.selected.map((item) => item.source)),
+  ]
   const independentSourceCount = new Set(
     prepared.selected.map((item) => item.sourceIdentity),
   ).size
@@ -597,7 +655,8 @@ function allInsufficientClassification(preferences) {
       preferenceId: item.id,
       status: "insufficient_evidence",
       confidence: "low",
-      summary: "There is not enough relevant evidence to assess this preference",
+      summary:
+        "There is not enough relevant evidence to assess this preference",
       positiveEvidenceIds: [],
       negativeEvidenceIds: [],
     })),
@@ -606,11 +665,15 @@ function allInsufficientClassification(preferences) {
 }
 
 function mapGroqFailure(payload, response) {
-  const message = stringOrNull(payload?.error?.message, 1_000) || "Groq request failed"
+  const message =
+    stringOrNull(payload?.error?.message, 1_000) || "Groq request failed"
   const type = stringOrNull(payload?.error?.type, 300) || ""
   const normalized = normalize(`${type} ${message}`)
   const retryAfter = response.headers.get("Retry-After")
-  if (response.status === 401 || /invalid.*api.*key|authentication/.test(normalized)) {
+  if (
+    response.status === 401 ||
+    /invalid.*api.*key|authentication/.test(normalized)
+  ) {
     return new GroqAnalysisError(
       "GROQ_INVALID_API_KEY",
       "Groq analysis is not configured correctly",
@@ -620,7 +683,9 @@ function mapGroqFailure(payload, response) {
   if (
     response.status === 404 ||
     response.status === 403 ||
-    /model.*not.*found|model.*unavailable|model.*permission|decommissioned/.test(normalized)
+    /model.*not.*found|model.*unavailable|model.*permission|decommissioned/.test(
+      normalized,
+    )
   ) {
     return new GroqAnalysisError(
       "GROQ_MODEL_UNAVAILABLE",
@@ -630,7 +695,9 @@ function mapGroqFailure(payload, response) {
   }
   if (
     response.status === 413 ||
-    /context.*length|too.*large|token.*limit|request.*too.*large/.test(normalized)
+    /context.*length|too.*large|token.*limit|request.*too.*large/.test(
+      normalized,
+    )
   ) {
     return new GroqAnalysisError(
       "GROQ_INPUT_TOO_LARGE",
@@ -686,7 +753,15 @@ async function responseJson(response) {
   }
 }
 
-async function groqCompletion({ apiKey, model, messages, schema, fetchImpl, sleep, stats }) {
+async function groqCompletion({
+  apiKey,
+  model,
+  messages,
+  schema,
+  fetchImpl,
+  sleep,
+  stats,
+}) {
   const body = {
     model,
     messages,
@@ -814,21 +889,41 @@ export function createGroqAnalysisService(options) {
   const usageStore = options.usageStore || sharedUsageStore
   const logger = options.logger || console
   const now = options.now || (() => Date.now())
-  const sleep = options.sleep || ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)))
+  const sleep =
+    options.sleep ||
+    ((milliseconds) =>
+      new Promise((resolve) => setTimeout(resolve, milliseconds)))
 
   async function analyzeHotelPreferences(input) {
     const startedAt = now()
-    const prepared = prepareEvidence(input.evidence, input.preferences, maxEvidenceItems)
+    const prepared = prepareEvidence(
+      input.evidence,
+      input.preferences,
+      maxEvidenceItems,
+    )
     const evidenceHash = await sha256(
       stableStringify(
         prepared.items
-          .map(({ score: _score, relevantPreferenceIds: _ids, sourceIdentity: _source, ...item }) => item)
-          .sort((left, right) => left.evidenceId.localeCompare(right.evidenceId)),
+          .map(
+            ({
+              score: _score,
+              relevantPreferenceIds: _ids,
+              sourceIdentity: _source,
+              ...item
+            }) => item,
+          )
+          .sort((left, right) =>
+            left.evidenceId.localeCompare(right.evidenceId),
+          ),
       ),
     )
     const cacheKey = await sha256(
       stableStringify({
-        hotelId: input.hotel.placeId || normalize(`${input.hotel.name}|${input.hotel.city}|${input.hotel.country}`),
+        hotelId:
+          input.hotel.placeId ||
+          normalize(
+            `${input.hotel.name}|${input.hotel.city}|${input.hotel.country}`,
+          ),
         preferences: input.preferences
           .map((item) => ({
             id: item.id,

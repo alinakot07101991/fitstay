@@ -61,6 +61,21 @@
   to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
+@keyframes analysis-dot {
+  0%, 70%, 100% { opacity: 0.28; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(-2px); }
+}
+
+@keyframes analysis-stage-pulse {
+  0%, 100% { opacity: 0.45; box-shadow: 0 0 0 0 rgba(247, 91, 86, 0.18); }
+  50% { opacity: 1; box-shadow: 0 0 0 6px rgba(247, 91, 86, 0); }
+}
+
+@keyframes analysis-ring-enter {
+  from { stroke-dashoffset: 580; opacity: 0; }
+  to { opacity: 1; }
+}
+
 .motion-page {
   animation: view-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -111,6 +126,37 @@ body select {
   animation: thinking-blob 1.35s cubic-bezier(0.45, 0, 0.55, 1) infinite;
   transform-origin: center;
   will-change: transform, filter;
+}
+
+.analysis-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #f75b56;
+  animation: analysis-dot 1.25s ease-in-out infinite;
+}
+
+.analysis-dots i:nth-child(2) { animation-delay: 140ms; }
+.analysis-dots i:nth-child(3) { animation-delay: 280ms; }
+
+.analysis-progress-line {
+  transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.analysis-current-stage {
+  animation: analysis-stage-pulse 1.6s ease-in-out infinite;
+}
+
+.analysis-score-segment {
+  animation: analysis-ring-enter 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: stroke-width 180ms ease, filter 180ms ease;
+}
+
+.analysis-score-segment:hover,
+.analysis-score-segment:focus {
+  stroke-width: 17px;
+  filter: drop-shadow(0 3px 5px rgba(247, 91, 86, 0.18));
+  outline: none;
 }
 
 .sidebar-action--check:hover .sidebar-action-icon,
@@ -198,6 +244,12 @@ body select {
   }
 
   .animate-thinking-blob {
+    animation: none;
+  }
+
+  .analysis-dots i,
+  .analysis-current-stage,
+  .analysis-score-segment {
     animation: none;
   }
 }

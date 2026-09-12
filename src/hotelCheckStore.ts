@@ -4,6 +4,8 @@ import { auth, database } from "./firebase"
 export type HotelCheckRecord = {
   id: string
   placeId?: string
+  city?: string
+  country?: string
   place: string
   hotel: string
   status: "draft" | "checked"
@@ -29,6 +31,8 @@ function isHotelCheckRecord(value: unknown): value is HotelCheckRecord {
   return (
     typeof record.id === "string" &&
     (record.placeId === undefined || typeof record.placeId === "string") &&
+    (record.city === undefined || typeof record.city === "string") &&
+    (record.country === undefined || typeof record.country === "string") &&
     typeof record.place === "string" &&
     typeof record.hotel === "string" &&
     (record.status === "draft" || record.status === "checked") &&
@@ -45,18 +49,23 @@ export function readLocalHotelChecks(): HotelCheckRecord[] {
     const rawRecords = window.localStorage.getItem(localRecordsKey())
     if (!rawRecords) return []
     const records: unknown = JSON.parse(rawRecords)
-    return Array.isArray(records) ? sortNewestFirst(records.filter(isHotelCheckRecord)) : []
+    return Array.isArray(records)
+      ? sortNewestFirst(records.filter(isHotelCheckRecord))
+      : []
   } catch {
     return []
   }
 }
 
 function writeLocalHotelChecks(records: HotelCheckRecord[]) {
-  window.localStorage.setItem(localRecordsKey(), JSON.stringify(sortNewestFirst(records)))
+  window.localStorage.setItem(
+    localRecordsKey(),
+    JSON.stringify(sortNewestFirst(records)),
+  )
 }
 
 export function createHotelCheckRecord(
-  hotel: Pick<HotelCheckRecord, "place" | "hotel" | "placeId">,
+  hotel: Pick<HotelCheckRecord, "place" | "hotel" | "placeId" | "city" | "country">,
 ): HotelCheckRecord {
   const normalizedHotel = hotel.hotel
     .trim()
@@ -67,6 +76,8 @@ export function createHotelCheckRecord(
   return {
     id: normalizedHotel || crypto.randomUUID(),
     placeId: hotel.placeId,
+    city: hotel.city,
+    country: hotel.country,
     place: hotel.place,
     hotel: hotel.hotel,
     status: "draft",
@@ -76,7 +87,10 @@ export function createHotelCheckRecord(
 
 export function upsertLocalHotelCheck(record: HotelCheckRecord) {
   const records = readLocalHotelChecks()
-  const nextRecords = [record, ...records.filter((item) => item.id !== record.id)]
+  const nextRecords = [
+    record,
+    ...records.filter((item) => item.id !== record.id),
+  ]
   writeLocalHotelChecks(nextRecords)
   return sortNewestFirst(nextRecords)
 }
@@ -88,7 +102,10 @@ export async function saveHotelCheck(record: HotelCheckRecord) {
   try {
     await setDoc(doc(userRecords, record.id), record, { merge: true })
   } catch (error) {
-    console.warn("Firestore is unavailable; the hotel check remains saved locally.", error)
+    console.warn(
+      "Firestore is unavailable; the hotel check remains saved locally.",
+      error,
+    )
   }
 }
 
@@ -104,13 +121,17 @@ export async function loadHotelChecks() {
     const merged = new Map<string, HotelCheckRecord>()
     for (const record of [...localRecords, ...remoteRecords]) {
       const current = merged.get(record.id)
-      if (!current || record.updatedAt > current.updatedAt) merged.set(record.id, record)
+      if (!current || record.updatedAt > current.updatedAt)
+        merged.set(record.id, record)
     }
     const records = sortNewestFirst([...merged.values()])
     writeLocalHotelChecks(records)
     return records
   } catch (error) {
-    console.warn("Firestore is unavailable; loading locally saved hotel checks.", error)
+    console.warn(
+      "Firestore is unavailable; loading locally saved hotel checks.",
+      error,
+    )
     return localRecords
   }
 }

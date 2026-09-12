@@ -41,7 +41,16 @@ import onboardingPreferencesImage from "@/imports/onboarding-preferences-v1.png"
 import onboardingPrioritiesImage from "@/imports/onboarding-priorities-v2.jpg"
 import { auth } from "./firebase"
 import { useVoiceTranscription } from "./useVoiceTranscription"
-import { completeOnboarding } from "./onboardingStore"
+import { completeOnboarding, loadTravelerProfile } from "./onboardingStore"
+import {
+  HotelAnalysisProcessing,
+  HotelAnalysisResultView,
+} from "./HotelAnalysisChat"
+import {
+  runHotelAnalysis,
+  type HotelAnalysisProgress,
+} from "./runHotelAnalysis"
+import type { HotelAnalysisResult } from "./hotelAnalysis"
 import {
   GooglePlacesResolutionError,
   searchGooglePlaceHotels,
@@ -66,6 +75,8 @@ type HotelOption = {
   place: string
   hotel: string
   placeId?: string
+  city?: string
+  country?: string
   image?: string
   domains?: string[]
 }
@@ -753,6 +764,8 @@ function hotelOptionFromGoogle(hotel: CanonicalGooglePlaceHotel): HotelOption {
       "Location unavailable",
     hotel: hotel.name,
     placeId: hotel.placeId,
+    city: hotel.city || undefined,
+    country: hotel.country || undefined,
     image: destinationImages[hotel.name],
   }
 }
@@ -774,13 +787,25 @@ function Home({
   const [chatMessages, setChatMessages] = useState<string[]>([])
   const [error, setError] = useState("")
   const [chatStage, setChatStage] =
-    useState<"idle" | "processing" | "confirmation" | "matches" | "clarify" | "none" | "search-error" | "awaiting-input">(
+    useState<"idle" | "processing" | "confirmation" | "matches" | "clarify" | "none" | "search-error" | "awaiting-input" | "analysis" | "analysis-result">(
       "idle",
     )
   const [candidates, setCandidates] = useState<HotelOption[]>([])
   const [searchError, setSearchError] = useState("")
   const searchRequestId = useRef(0)
   const searchInFlight = useRef(false)
+  const analysisInFlight = useRef(false)
+  const [analysisStage, setAnalysisStage] =
+    useState<HotelAnalysisProgress>("hotel_information")
+  const [analysisError, setAnalysisError] = useState("")
+  const [analysisResult, setAnalysisResult] =
+    useState<HotelAnalysisResult | null>(null)
+  const [analysisPreferenceLabels, setAnalysisPreferenceLabels] =
+    useState<Record<string, string>>({})
+  const [hotelQuestions, setHotelQuestions] = useState<Array<{
+    role: "user" | "ai"
+    text: string
+  }>>([])
   const [templateModal, setTemplateModal] = useState(false)
   const [identifiedHotel, setIdentifiedHotel] = useState<HotelOption | null>(
     null,
@@ -877,6 +902,31 @@ function Home({
   const submitChatMessage = (event: React.FormEvent) => {
     event.preventDefault()
     if (!composerValue.trim()) return
+    if (chatStage === "analysis-result" && analysisResult) {
+      const question = composerValue.trim()
+      const terms = question
+        .toLocaleLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter((term) => term.length > 3)
+      const relevant = analysisResult.preferences.find((preference) => {
+        const searchable =
+          `${preference.preferenceId} ${preference.summary}`.toLocaleLowerCase()
+        return terms.some((term) => searchable.includes(term))
+      })
+      setHotelQuestions((messages) => [
+        ...messages,
+        { role: "user", text: question },
+        {
+          role: "ai",
+          text: relevant
+            ? relevant.summary
+            : "I can answer from the completed check. Ask about one of your saved preferences, the strengths, risks, or evidence confidence",
+        },
+      ])
+      setComposerValue("")
+      return
+    }
+    if (chatStage === "analysis") return
     void runSearch(composerValue)
     setComposerValue("")
   }
@@ -893,6 +943,75 @@ function Home({
     setIdentifiedHotel(null)
     setChatStage("awaiting-input")
     window.setTimeout(() => composerInputRef.current?.focus(), 0)
+  }
+
+  const startHotelAnalysis = async () => {
+    if (!identifiedHotel || analysisInFlight.current) return
+    analysisInFlight.current = true
+    resolveDraft(identifiedHotel.hotel)
+    setAnalysisError("")
+    setAnalysisResult(null)
+    setComposerValue("")
+    setAnalysisStage("hotel_information")
+    setChatStage("analysis")
+
+    const profile = auth.currentUser
+      ? await loadTravelerProfile(auth.currentUser.uid)
+      : null
+    const preferences = (profile?.preferences || []).map((preference) => ({
+      id:
+        preference.label
+          .normalize("NFKD")
+          .toLocaleLowerCase()
+          .replace(/[^a-z0-9\p{L}]+/gu, "-")
+          .replace(/^-|-$/g, "") || crypto.randomUUID(),
+      label: preference.label,
+      priority: preference.priority,
+    }))
+    setAnalysisPreferenceLabels(
+      Object.fromEntries(
+        preferences.map((preference) => [preference.id, preference.label]),
+      ),
+    )
+    const placeParts = identifiedHotel.place
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+    const city = identifiedHotel.city || placeParts[0] || "Unknown city"
+    const country =
+      identifiedHotel.country || placeParts.at(-1) || "Unknown country"
+
+    if (preferences.length === 0) {
+      setAnalysisError(
+        "Your saved trip preferences could not be loaded. Complete onboarding before starting a check",
+      )
+      analysisInFlight.current = false
+      return
+    }
+
+    try {
+      const completed = await runHotelAnalysis({
+        hotel: {
+          source: "google_places",
+          placeId: identifiedHotel.placeId || null,
+          name: identifiedHotel.hotel,
+          city,
+          country,
+        },
+        preferences,
+        onProgress: setAnalysisStage,
+      })
+      setAnalysisResult(completed.result)
+      window.setTimeout(() => setChatStage("analysis-result"), 420)
+    } catch (caught) {
+      const message =
+        caught instanceof Error
+          ? caught.message
+          : "The hotel analysis could not be completed"
+      setAnalysisError(message)
+    } finally {
+      analysisInFlight.current = false
+    }
   }
 
   const effectiveHistoryState: HistoryState =
@@ -1110,13 +1229,7 @@ function Home({
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Button
-                      primary
-                      onClick={() => {
-                        resolveDraft(identifiedHotel.hotel)
-                        go("analysis")
-                      }}
-                    >
+                    <Button primary onClick={() => void startHotelAnalysis()}>
                       Yes, start check
                     </Button>
                     <Button onClick={requestAnotherHotel}>
@@ -1128,6 +1241,45 @@ function Home({
                   </p>
                 </div>
               )}
+
+              {chatStage === "analysis" && identifiedHotel && (
+                <HotelAnalysisProcessing
+                  hotelName={identifiedHotel.hotel}
+                  activeStage={analysisStage}
+                  error={analysisError}
+                  onRetry={() => void startHotelAnalysis()}
+                />
+              )}
+
+              {chatStage === "analysis-result" &&
+                identifiedHotel &&
+                analysisResult && (
+                  <HotelAnalysisResultView
+                    hotelName={identifiedHotel.hotel}
+                    result={analysisResult}
+                    preferenceLabels={analysisPreferenceLabels}
+                    onCompare={() => go("alternative")}
+                  />
+                )}
+
+              {hotelQuestions.map((message, index) => (
+                <div
+                  key={`${message.role}-${index}`}
+                  className={`mt-4 flex ${
+                    message.role === "user" ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <p
+                    className={`max-w-[78%] rounded-[20px] px-4 py-3 text-[14px] leading-relaxed ${
+                      message.role === "user"
+                        ? "rounded-br-md bg-[#f3f0eb]"
+                        : "pl-0 text-[#4e4944]"
+                    }`}
+                  >
+                    {message.text}
+                  </p>
+                </div>
+              ))}
             </div>
 
             <form
@@ -1178,7 +1330,14 @@ function Home({
                       if (voiceInput.message) voiceInput.clearMessage()
                     }}
                     aria-label="Continue chat"
-                    placeholder="Enter a hotel, destination, or message…"
+                    placeholder={
+                      chatStage === "analysis-result"
+                        ? "Ask anything about this hotel…"
+                        : chatStage === "analysis"
+                          ? "Analysis in progress…"
+                          : "Enter a hotel, destination, or message…"
+                    }
+                    disabled={chatStage === "analysis"}
                     className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#8b847c]"
                   />
                 )}
@@ -1225,7 +1384,8 @@ function Home({
                     type="button"
                     onClick={voiceInput.startRecording}
                     aria-label="Start voice input"
-                    className="grid size-10 shrink-0 place-items-center rounded-full text-[#514b45] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+                    disabled={chatStage === "analysis"}
+                    className="grid size-10 shrink-0 place-items-center rounded-full text-[#514b45] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50 disabled:cursor-not-allowed disabled:opacity-35"
                   >
                     <Icon name="microphone" />
                   </button>
@@ -2453,6 +2613,8 @@ export default function VisualLab() {
           place: storedDraft.place,
           hotel: storedDraft.hotel,
           placeId: storedDraft.placeId,
+          city: storedDraft.city,
+          country: storedDraft.country,
           image: destinationImages[storedDraft.hotel],
         }
       : null
@@ -2479,10 +2641,12 @@ export default function VisualLab() {
     )
     setDraftHotel(
       remainingDraft
-          ? {
+        ? {
             place: remainingDraft.place,
             hotel: remainingDraft.hotel,
             placeId: remainingDraft.placeId,
+            city: remainingDraft.city,
+            country: remainingDraft.country,
             image: destinationImages[remainingDraft.hotel],
           }
         : null,
@@ -2490,9 +2654,7 @@ export default function VisualLab() {
     if (result.updatedRecord) void saveHotelCheck(result.updatedRecord)
   }
 
-  const persistedDraft = hotelChecks.find(
-    (record) => record.status === "draft",
-  )
+  const persistedDraft = hotelChecks.find((record) => record.status === "draft")
   const currentDraftHotel =
     draftHotel ||
     (persistedDraft
@@ -2500,6 +2662,8 @@ export default function VisualLab() {
           place: persistedDraft.place,
           hotel: persistedDraft.hotel,
           placeId: persistedDraft.placeId,
+          city: persistedDraft.city,
+          country: persistedDraft.country,
           image: destinationImages[persistedDraft.hotel],
         }
       : null)
