@@ -10,6 +10,7 @@ import { handleTripadvisorHotelReviews } from './server/tripadvisor.js'
 import { handleGoogleHotelsReviews } from './server/serpapi-google-hotels.js'
 import { handleGooglePlacesHotelResolution } from './server/google-places.js'
 import { handleTavilyHotelEvidence } from './server/tavily-evidence.js'
+import { handleYouTubeHotelEvidence } from './server/youtube-evidence.js'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -33,6 +34,7 @@ export default defineConfig(({ mode }) => {
       googleHotelsReviewsDev(environment.SERPAPI_API_KEY),
       googlePlacesHotelResolutionDev(environment.GOOGLE_PLACES_API_KEY),
       tavilyEvidenceDev(environment.TAVILY_API_KEY),
+      youtubeEvidenceDev(environment.YOUTUBE_API_KEY, environment.YOUTUBE_DAILY_REQUEST_LIMIT),
       sitesStaticWorker(),
       figmaSiteConfiguration(siteConfiguration),
       figmaErrorOverlayReplay(),
@@ -370,6 +372,63 @@ function tavilyEvidenceDev(apiKey?: string): Plugin {
   }
 }
 
+const MAX_YOUTUBE_REQUEST_BYTES = 16 * 1024
+
+/** Proxies explicit YouTube evidence requests without exposing the API key. */
+function youtubeEvidenceDev(apiKey?: string, dailyLimit?: string): Plugin {
+  return {
+    name: 'youtube-evidence-dev',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/api/youtube/evidence', async (req, res) => {
+        const sendResponse = async (response: Response) => {
+          res.statusCode = response.status
+          response.headers.forEach((value, key) => res.setHeader(key, value))
+          res.end(Buffer.from(await response.arrayBuffer()))
+        }
+
+        try {
+          const chunks: Buffer[] = []
+          let receivedBytes = 0
+          for await (const chunk of req) {
+            const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+            receivedBytes += buffer.length
+            if (receivedBytes > MAX_YOUTUBE_REQUEST_BYTES) {
+              await sendResponse(new Response(
+                JSON.stringify({ error: { code: 'REQUEST_TOO_LARGE', message: 'Request is too large' } }),
+                { status: 413, headers: { 'Content-Type': 'application/json; charset=utf-8' } },
+              ))
+              return
+            }
+            chunks.push(buffer)
+          }
+
+          const request = new Request('http://localhost/api/youtube/evidence', {
+            method: req.method,
+            headers: { 'content-type': req.headers['content-type'] || 'application/json' },
+            body: req.method === 'GET' || req.method === 'HEAD'
+              ? undefined
+              : new Uint8Array(Buffer.concat(chunks)),
+          })
+          await sendResponse(await handleYouTubeHotelEvidence(request, apiKey, { dailyLimit }))
+        } catch {
+          await sendResponse(new Response(
+            JSON.stringify({
+              provider: 'youtube',
+              providerStatus: 'error',
+              error: {
+                code: 'YOUTUBE_UNAVAILABLE',
+                message: 'YouTube evidence is temporarily unavailable',
+              },
+            }),
+            { status: 502, headers: { 'Content-Type': 'application/json; charset=utf-8' } },
+          ))
+        }
+      })
+    },
+  }
+}
+
 /** Emits the Cloudflare Worker entrypoint required by Sites, including private API proxies. */
 function sitesStaticWorker(): Plugin {
   let root = process.cwd()
@@ -384,11 +443,15 @@ function sitesStaticWorker(): Plugin {
 import { handleGoogleHotelsReviews } from './serpapi-google-hotels.js'
 import { handleGooglePlacesHotelResolution } from './google-places.js'
 import { handleTavilyHotelEvidence } from './tavily-evidence.js'
+import { handleYouTubeHotelEvidence } from './youtube-evidence.js'
+import { createD1YouTubeUsageStore } from './youtube-usage-store.js'
 
 const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
 const GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 const TAVILY_CACHE_SECONDS = 7 * 24 * 60 * 60
+const YOUTUBE_CACHE_SECONDS = 7 * 24 * 60 * 60
+let youtubeUsageStore
 
 async function tavilyCacheRequest(key) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key))
@@ -414,6 +477,33 @@ const tavilyAnalysisCache = {
   },
   async delete(key) {
     return caches.default.delete(await tavilyCacheRequest(key))
+  },
+}
+
+async function youtubeCacheRequest(key) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key))
+  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return new Request('https://fitstay.internal/cache/youtube/' + hash)
+}
+
+const youtubeEvidenceCache = {
+  async get(key) {
+    const response = await caches.default.match(await youtubeCacheRequest(key))
+    return response ? response.json() : null
+  },
+  async set(key, value) {
+    await caches.default.put(
+      await youtubeCacheRequest(key),
+      new Response(JSON.stringify(value), {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'public, max-age=' + YOUTUBE_CACHE_SECONDS,
+        },
+      }),
+    )
+  },
+  async delete(key) {
+    return caches.default.delete(await youtubeCacheRequest(key))
   },
 }
 
@@ -485,6 +575,14 @@ export default {
         analysisCache: tavilyAnalysisCache,
       })
     }
+    if (url.pathname === '/api/youtube/evidence') {
+      youtubeUsageStore ||= createD1YouTubeUsageStore(env.DB)
+      return handleYouTubeHotelEvidence(request, env.YOUTUBE_API_KEY, {
+        dailyLimit: env.YOUTUBE_DAILY_REQUEST_LIMIT,
+        cache: youtubeEvidenceCache,
+        usageStore: youtubeUsageStore,
+      })
+    }
     const response = await env.ASSETS.fetch(request)
     if (response.status !== 404) return response
     return env.ASSETS.fetch(new Request(new URL('/', request.url), request))
@@ -516,6 +614,18 @@ export default {
       await copyFile(
         path.resolve(root, 'server/tavily-evidence-service.js'),
         path.resolve(workerDirectory, 'tavily-evidence-service.js'),
+      )
+      await copyFile(
+        path.resolve(root, 'server/youtube-evidence.js'),
+        path.resolve(workerDirectory, 'youtube-evidence.js'),
+      )
+      await copyFile(
+        path.resolve(root, 'server/youtube-evidence-service.js'),
+        path.resolve(workerDirectory, 'youtube-evidence-service.js'),
+      )
+      await copyFile(
+        path.resolve(root, 'server/youtube-usage-store.js'),
+        path.resolve(workerDirectory, 'youtube-usage-store.js'),
       )
     },
   }

@@ -27,6 +27,15 @@
 
 ## Історія
 
+### 2026-09-12 — Інтегровано YouTube hotel evidence provider
+
+- Тип: Code / Data / Operations
+- Статус: Погоджено
+- Зміна: додано незалежний server-only YouTube Data API v3 provider для контрольованого пошуку hotel review, room tour і guest experience videos, перевірки metadata, отримання максимум 20 top-level comments на відео та нормалізації traceable video/comment evidence. Search обмежено трьома requests, обробку — десятьма unique videos, pagination, replies, transcripts, audio/video downloads і Groq analysis не додано.
+- Причина: додати відео та публічні guest comments до майбутнього мультиджерельного hotel evidence pipeline без зміни canonical Google Places identity.
+- Артефакти: `server/youtube-evidence-service.js`, `server/youtube-evidence.js`, `server/youtube-usage-store.js`, declarations, integration tests, `src/youtubeEvidence.ts`, `db/schema.ts`, `drizzle/0000_youtube_daily_usage.sql`, `vite.config.ts`, `.env.example`, `.openai/hosting.json` і Sites runtime environment.
+- Вплив: evidence кешується на 7 днів; атомарний D1 counter зупиняє зовнішні YouTube requests після configurable UTC daily limit, default `50`. UI, Google Places, SerpApi, Tavily, scoring і Groq analysis не змінено.
+
 ### 2026-09-12 — Інтегровано Tavily open-web evidence provider
 
 - Тип: Code / Data / Operations
