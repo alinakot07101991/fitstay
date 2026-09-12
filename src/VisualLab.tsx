@@ -46,11 +46,14 @@ import {
   HotelAnalysisProcessing,
   HotelAnalysisResultView,
 } from "./HotelAnalysisChat"
-import {
-  runHotelAnalysis,
-  type HotelAnalysisProgress,
-} from "./runHotelAnalysis"
+import { type HotelAnalysisProgress } from "./runHotelAnalysis"
 import type { HotelAnalysisResult } from "./hotelAnalysis"
+import {
+  getHotelAnalysisJob,
+  retryHotelAnalysisJob,
+  startHotelAnalysisJob,
+  type HotelAnalysisJob,
+} from "./hotelAnalysisJobs"
 import {
   GooglePlacesResolutionError,
   searchGooglePlaceHotels,
@@ -62,6 +65,7 @@ import {
   markLatestDraftChecked,
   readLocalHotelChecks,
   saveHotelCheck,
+  updateHotelCheckRecord,
   upsertLocalHotelCheck,
   type HotelCheckRecord,
 } from "./hotelCheckStore"
@@ -69,7 +73,7 @@ import {
 type Viewport = "desktop" | "tablet" | "mobile"
 type ScreenId = "signup" | "verify" | "onboarding" | "home" | "home-draft" | "home-history" | "identify" | "ambiguous" | "not-found" | "paywall" | "analysis" | "preliminary" | "result" | "no-data" | "failed" | "alternative" | "alternative-result" | "profile" | "saved" | "settings" | "help"
 type HistoryState = "empty" | "draft" | "history" | "history-with-draft" | "active"
-type HistoryEntry = [string, string, string, string, string?]
+type HistoryEntry = [string, string, string, string, string?, string?]
 type Go = (id: ScreenId) => void
 type HotelOption = {
   place: string
@@ -91,14 +95,23 @@ const DraftContext = createContext<{
   hasDraft: boolean
   draftHotel: HotelOption | null
   hotelChecks: HotelCheckRecord[]
-  createDraft: (hotel: HotelOption) => void
-  resolveDraft: (hotelName?: string) => void
+  activeCheckId: string | null
+  createDraft: (hotel: HotelOption) => HotelCheckRecord
+  resolveDraft: (hotelName?: string) => HotelCheckRecord | null
+  openHotelCheck: (id: string) => void
+  updateHotelCheck: (
+    id: string,
+    changes: Partial<HotelCheckRecord>,
+  ) => HotelCheckRecord | null
 }>({
   hasDraft: false,
   draftHotel: null,
   hotelChecks: [],
-  createDraft: () => {},
-  resolveDraft: () => {},
+  activeCheckId: null,
+  createDraft: () => createHotelCheckRecord(defaultDraftHotel),
+  resolveDraft: () => null,
+  openHotelCheck: () => {},
+  updateHotelCheck: () => null,
 })
 
 const destinationImages: Record<string, string> = {
@@ -126,6 +139,7 @@ function historyEntryFromRecord(record: HotelCheckRecord): HistoryEntry {
     }).format(new Date(record.updatedAt)),
     destinationImages[record.hotel] || rhodesImage,
     record.status === "draft" ? "Draft" : undefined,
+    record.id,
   ]
 }
 
@@ -358,9 +372,11 @@ function SearchHistoryModal({
     return () => window.removeEventListener("keydown", closeOnEscape)
   }, [onClose])
 
-  const openEntry = (status?: string) => {
+  const { openHotelCheck } = useContext(DraftContext)
+  const openEntry = (entry: HistoryEntry) => {
     onClose()
-    go(status === "Draft" ? "identify" : "result")
+    if (entry[5]) openHotelCheck(entry[5])
+    else go(entry[4] === "Draft" ? "identify" : "result")
   }
 
   return (
@@ -402,36 +418,39 @@ function SearchHistoryModal({
 
         {matches.length > 0 ? (
           <div className="max-h-[470px] overflow-y-auto p-3">
-            {matches.map(([place, hotel, date, image, status]) => (
-              <button
-                key={`${place}-${status || "checked"}`}
-                onClick={() => openEntry(status)}
-                aria-label={`Open ${place} — ${hotel}`}
-                className="flex w-full items-center gap-4 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-[#f5f2ed] focus:outline-none focus-visible:bg-[#f5f2ed] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
-              >
-                <img
-                  src={image}
-                  alt=""
-                  className="size-12 shrink-0 rounded-full object-cover"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <b className="truncate text-[14px]">{place}</b>
-                    {status && (
-                      <span className="shrink-0 rounded-full bg-[#fff0eb] px-2 py-1 text-[12px] font-semibold text-[#d95448]">
-                        {status}
-                      </span>
-                    )}
+            {matches.map((entry) => {
+              const [place, hotel, date, image, status, recordId] = entry
+              return (
+                <button
+                  key={recordId || `${place}-${status || "checked"}`}
+                  onClick={() => openEntry(entry)}
+                  aria-label={`Open ${place} — ${hotel}`}
+                  className="flex w-full items-center gap-4 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-[#f5f2ed] focus:outline-none focus-visible:bg-[#f5f2ed] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
+                >
+                  <img
+                    src={image}
+                    alt=""
+                    className="size-12 shrink-0 rounded-full object-cover"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <b className="truncate text-[14px]">{place}</b>
+                      {status && (
+                        <span className="shrink-0 rounded-full bg-[#fff0eb] px-2 py-1 text-[12px] font-semibold text-[#d95448]">
+                          {status}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1 block truncate text-[12px] text-[#77716a]">
+                      {hotel}
+                    </span>
                   </span>
-                  <span className="mt-1 block truncate text-[12px] text-[#77716a]">
-                    {hotel}
-                  </span>
-                </span>
-                <time className="shrink-0 text-[12px] text-[#9b948c]">
-                  {date}
-                </time>
-              </button>
-            ))}
+                  <time className="shrink-0 text-[12px] text-[#9b948c]">
+                    {date}
+                  </time>
+                </button>
+              )
+            })}
           </div>
         ) : (
           <div className="flex min-h-[280px] flex-col items-center justify-center px-8 pb-8 text-center">
@@ -465,7 +484,7 @@ function History({
   state: HistoryState
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
-  const { draftHotel, hotelChecks } = useContext(DraftContext)
+  const { draftHotel, hotelChecks, openHotelCheck } = useContext(DraftContext)
   const history: HistoryEntry[] = [
     ["Rhodes, Greece", "Gennadi Grand Resort", "May 20, 2026", rhodesImage],
     ["Bali, Indonesia", "The Apurva Kempinski Bali", "May 18, 2026", baliImage],
@@ -559,35 +578,41 @@ function History({
           <EmptyHistory />
         ) : (
           <div className="space-y-1 px-4 pb-6 pt-5">
-            {visibleHistory.map(([place, hotel, date, image, status]) => (
-              <button
-                key={`${place}-${status || "checked"}`}
-                onClick={() => go(status === "Draft" ? "identify" : "result")}
-                className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-[#f3f0eb] focus:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
-              >
-                <img
-                  src={image}
-                  alt=""
-                  className="size-12 shrink-0 rounded-full object-cover"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <b className="min-w-0 truncate text-[12px]">{place}</b>
-                    {status && (
-                      <span className="shrink-0 rounded-full bg-[#fff0eb] px-2 py-1 text-[12px] font-semibold text-[#d95448]">
-                        {status}
-                      </span>
-                    )}
+            {visibleHistory.map(
+              ([place, hotel, date, image, status, recordId]) => (
+                <button
+                  key={recordId || `${place}-${status || "checked"}`}
+                  onClick={() =>
+                    recordId
+                      ? openHotelCheck(recordId)
+                      : go(status === "Draft" ? "identify" : "result")
+                  }
+                  className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-[#f3f0eb] focus:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
+                >
+                  <img
+                    src={image}
+                    alt=""
+                    className="size-12 shrink-0 rounded-full object-cover"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <b className="min-w-0 truncate text-[12px]">{place}</b>
+                      {status && (
+                        <span className="shrink-0 rounded-full bg-[#fff0eb] px-2 py-1 text-[12px] font-semibold text-[#d95448]">
+                          {status}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1 block truncate text-[12px] text-[#77716a]">
+                      {hotel}
+                    </span>
+                    <span className="mt-1 block text-[12px] text-[#a09991]">
+                      {date}
+                    </span>
                   </span>
-                  <span className="mt-1 block truncate text-[12px] text-[#77716a]">
-                    {hotel}
-                  </span>
-                  <span className="mt-1 block text-[12px] text-[#a09991]">
-                    {date}
-                  </span>
-                </span>
-              </button>
-            ))}
+                </button>
+              ),
+            )}
           </div>
         )}
       </aside>
@@ -781,7 +806,14 @@ function Home({
 }) {
   const hotelInputRef = useRef<HTMLInputElement>(null)
   const composerInputRef = useRef<HTMLInputElement>(null)
-  const { createDraft, resolveDraft, hotelChecks } = useContext(DraftContext)
+  const {
+    activeCheckId,
+    createDraft,
+    resolveDraft,
+    hotelChecks,
+    openHotelCheck,
+    updateHotelCheck,
+  } = useContext(DraftContext)
   const [inputValue, setInputValue] = useState("")
   const [composerValue, setComposerValue] = useState("")
   const [chatMessages, setChatMessages] = useState<string[]>([])
@@ -802,6 +834,9 @@ function Home({
     useState<HotelAnalysisResult | null>(null)
   const [analysisPreferenceLabels, setAnalysisPreferenceLabels] =
     useState<Record<string, string>>({})
+  const [currentCheckId, setCurrentCheckId] = useState<string | null>(
+    activeCheckId,
+  )
   const [hotelQuestions, setHotelQuestions] = useState<Array<{
     role: "user" | "ai"
     text: string
@@ -818,6 +853,95 @@ function Home({
   }, [])
   const voiceInput = useVoiceTranscription(insertTranscription)
 
+  const applyAnalysisJob = useCallback(
+    (job: HotelAnalysisJob, checkId: string) => {
+      setAnalysisStage(job.stage)
+      setAnalysisError(job.error?.message || "")
+      if (job.result) setAnalysisResult(job.result)
+      if (job.status === "completed" && job.result)
+        setChatStage("analysis-result")
+      else setChatStage("analysis")
+      updateHotelCheck(checkId, {
+        analysisJobId: job.jobId,
+        analysisStatus: job.status,
+        analysisStage: job.stage,
+        analysisResult: job.result || undefined,
+        analysisError: job.error?.message || undefined,
+        analysisErrorCode: job.error?.code || undefined,
+      })
+    },
+    [updateHotelCheck],
+  )
+
+  useEffect(() => {
+    if (!activeCheckId) return
+    const record = hotelChecks.find((item) => item.id === activeCheckId)
+    if (!record) return
+    setCurrentCheckId(record.id)
+    setIdentifiedHotel({
+      place: record.place,
+      hotel: record.hotel,
+      placeId: record.placeId,
+      city: record.city,
+      country: record.country,
+      image: destinationImages[record.hotel],
+    })
+    setChatMessages([])
+    setHotelQuestions([])
+    setAnalysisPreferenceLabels(record.analysisPreferenceLabels || {})
+    setAnalysisStage(record.analysisStage || "hotel_information")
+    setAnalysisResult(record.analysisResult || null)
+    setAnalysisError(record.analysisError || "")
+    if (record.status === "draft") setChatStage("confirmation")
+    else if (record.analysisStatus === "completed" && record.analysisResult)
+      setChatStage("analysis-result")
+    else {
+      setChatStage("analysis")
+      if (!record.analysisJobId && !record.analysisError)
+        setAnalysisError(
+          "This result is not available yet. Run the analysis again",
+        )
+    }
+  }, [activeCheckId])
+
+  useEffect(() => {
+    if (!currentCheckId) return
+    const record = hotelChecks.find((item) => item.id === currentCheckId)
+    if (
+      !record?.analysisJobId ||
+      !["queued", "processing"].includes(record.analysisStatus || "")
+    )
+      return
+    let active = true
+    let timer: number | undefined
+    const poll = async () => {
+      try {
+        const job = await getHotelAnalysisJob(record.analysisJobId!)
+        if (!active) return
+        applyAnalysisJob(job, record.id)
+        if (job.status === "queued" || job.status === "processing")
+          timer = window.setTimeout(poll, 1800)
+      } catch (caught) {
+        if (!active) return
+        setAnalysisError(
+          caught instanceof Error
+            ? caught.message
+            : "The hotel analysis status could not be loaded",
+        )
+        timer = window.setTimeout(poll, 3000)
+      }
+    }
+    void poll()
+    return () => {
+      active = false
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [
+    currentCheckId,
+    hotelChecks.find((item) => item.id === currentCheckId)?.analysisJobId,
+    hotelChecks.find((item) => item.id === currentCheckId)?.analysisStatus,
+  ])
+
   const existingCheckFor = (hotel: HotelOption) => {
     const normalizedHotel = hotel.hotel.trim().toLocaleLowerCase()
     return hotelChecks.find(
@@ -828,15 +952,7 @@ function Home({
   const openExistingCheck = (hotel: HotelOption) => {
     const existingCheck = existingCheckFor(hotel)
     if (!existingCheck) return false
-
-    setCandidates([])
-    setIdentifiedHotel(hotel)
-    if (existingCheck.status === "draft") {
-      setChatMessages([])
-      setChatStage("confirmation")
-    } else {
-      go("result")
-    }
+    openHotelCheck(existingCheck.id)
     return true
   }
 
@@ -862,7 +978,8 @@ function Home({
       const hotel = hotelOptionFromGoogle(result)
       if (openExistingCheck(hotel)) return
       setIdentifiedHotel(hotel)
-      createDraft(hotel)
+      const record = createDraft(hotel)
+      setCurrentCheckId(record.id)
       setChatStage("confirmation")
     } catch (caught) {
       if (requestId !== searchRequestId.current) return
@@ -934,7 +1051,8 @@ function Home({
   const chooseHotel = (hotel: HotelOption) => {
     if (openExistingCheck(hotel)) return
     setIdentifiedHotel(hotel)
-    createDraft(hotel)
+    const record = createDraft(hotel)
+    setCurrentCheckId(record.id)
     setChatStage("confirmation")
   }
 
@@ -948,7 +1066,9 @@ function Home({
   const startHotelAnalysis = async () => {
     if (!identifiedHotel || analysisInFlight.current) return
     analysisInFlight.current = true
-    resolveDraft(identifiedHotel.hotel)
+    const checkedRecord = resolveDraft(identifiedHotel.hotel)
+    const checkId = checkedRecord?.id || currentCheckId
+    if (checkId) setCurrentCheckId(checkId)
     setAnalysisError("")
     setAnalysisResult(null)
     setComposerValue("")
@@ -973,6 +1093,12 @@ function Home({
         preferences.map((preference) => [preference.id, preference.label]),
       ),
     )
+    if (checkId)
+      updateHotelCheck(checkId, {
+        analysisPreferenceLabels: Object.fromEntries(
+          preferences.map((preference) => [preference.id, preference.label]),
+        ),
+      })
     const placeParts = identifiedHotel.place
       .split(",")
       .map((part) => part.trim())
@@ -985,12 +1111,19 @@ function Home({
       setAnalysisError(
         "Your saved trip preferences could not be loaded. Complete onboarding before starting a check",
       )
+      if (checkId)
+        updateHotelCheck(checkId, {
+          analysisStatus: "failed",
+          analysisError:
+            "Your saved trip preferences could not be loaded. Complete onboarding before starting a check",
+          analysisErrorCode: "PREFERENCES_NOT_FOUND",
+        })
       analysisInFlight.current = false
       return
     }
 
     try {
-      const completed = await runHotelAnalysis({
+      const job = await startHotelAnalysisJob({
         hotel: {
           source: "google_places",
           placeId: identifiedHotel.placeId || null,
@@ -999,16 +1132,48 @@ function Home({
           country,
         },
         preferences,
-        onProgress: setAnalysisStage,
       })
-      setAnalysisResult(completed.result)
-      window.setTimeout(() => setChatStage("analysis-result"), 420)
+      if (checkId) applyAnalysisJob(job, checkId)
     } catch (caught) {
       const message =
         caught instanceof Error
           ? caught.message
           : "The hotel analysis could not be completed"
       setAnalysisError(message)
+      if (checkId)
+        updateHotelCheck(checkId, {
+          analysisStatus: "failed",
+          analysisError: message,
+          analysisErrorCode: "HOTEL_ANALYSIS_JOB_ERROR",
+        })
+    } finally {
+      analysisInFlight.current = false
+    }
+  }
+
+  const retryAnalysis = async () => {
+    if (analysisInFlight.current) return
+    const record = hotelChecks.find((item) => item.id === currentCheckId)
+    if (!record?.analysisJobId || record.analysisStatus !== "failed") {
+      await startHotelAnalysis()
+      return
+    }
+    analysisInFlight.current = true
+    setAnalysisError("")
+    setAnalysisStage("hotel_information")
+    try {
+      const job = await retryHotelAnalysisJob(record.analysisJobId)
+      applyAnalysisJob(job, record.id)
+    } catch (caught) {
+      const message =
+        caught instanceof Error
+          ? caught.message
+          : "The hotel analysis could not be restarted"
+      setAnalysisError(message)
+      updateHotelCheck(record.id, {
+        analysisStatus: "failed",
+        analysisError: message,
+      })
     } finally {
       analysisInFlight.current = false
     }
@@ -1247,7 +1412,7 @@ function Home({
                   hotelName={identifiedHotel.hotel}
                   activeStage={analysisStage}
                   error={analysisError}
-                  onRetry={() => void startHotelAnalysis()}
+                  onRetry={() => void retryAnalysis()}
                 />
               )}
 
@@ -2620,9 +2785,13 @@ export default function VisualLab() {
       : null
   })
   const [homeInstance, setHomeInstance] = useState(0)
+  const [activeCheckId, setActiveCheckId] = useState<string | null>(null)
 
   const navigate: Go = (id) => {
-    if (id === "home") setHomeInstance((current) => current + 1)
+    if (id === "home") {
+      setActiveCheckId(null)
+      setHomeInstance((current) => current + 1)
+    }
     setScreen(id)
   }
 
@@ -2631,10 +2800,11 @@ export default function VisualLab() {
     setDraftHotel(hotel)
     setHotelChecks(upsertLocalHotelCheck(record))
     void saveHotelCheck(record)
+    return record
   }
 
   const resolveDraft = (hotelName?: string) => {
-    const result = markLatestDraftChecked(hotelChecks, hotelName)
+    const result = markLatestDraftChecked(readLocalHotelChecks(), hotelName)
     setHotelChecks(result.records)
     const remainingDraft = result.records.find(
       (record) => record.status === "draft",
@@ -2652,6 +2822,20 @@ export default function VisualLab() {
         : null,
     )
     if (result.updatedRecord) void saveHotelCheck(result.updatedRecord)
+    return result.updatedRecord
+  }
+
+  const updateHotelCheck = (id: string, changes: Partial<HotelCheckRecord>) => {
+    const result = updateHotelCheckRecord(readLocalHotelChecks(), id, changes)
+    setHotelChecks(result.records)
+    if (result.updatedRecord) void saveHotelCheck(result.updatedRecord)
+    return result.updatedRecord
+  }
+
+  const openHotelCheck = (id: string) => {
+    setActiveCheckId(id)
+    setScreen("home")
+    setHomeInstance((current) => current + 1)
   }
 
   const persistedDraft = hotelChecks.find((record) => record.status === "draft")
@@ -2674,8 +2858,11 @@ export default function VisualLab() {
         hasDraft: Boolean(currentDraftHotel),
         draftHotel: currentDraftHotel,
         hotelChecks,
+        activeCheckId,
         createDraft,
         resolveDraft,
+        openHotelCheck,
+        updateHotelCheck,
       }}
     >
       <div

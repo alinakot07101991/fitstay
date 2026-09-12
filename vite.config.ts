@@ -20,6 +20,11 @@ import {
   handleGroqHotelAnalysis,
   MAX_GROQ_ANALYSIS_REQUEST_BYTES,
 } from "./server/groq-analysis.js"
+import {
+  createHotelAnalysisJobHandlers,
+  createMemoryHotelAnalysisJobStore,
+  handleHotelAnalysisJobs,
+} from "./server/hotel-analysis-jobs.js"
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -49,6 +54,17 @@ export default defineConfig(({ mode }) => {
         environment.YOUTUBE_API_KEY,
         environment.YOUTUBE_DAILY_REQUEST_LIMIT,
       ),
+      hotelAnalysisJobsDev({
+        tripadvisorApiKey: environment.TRIPADVISOR_API_KEY,
+        serpApiKey: environment.SERPAPI_API_KEY,
+        tavilyApiKey: environment.TAVILY_API_KEY,
+        youtubeApiKey: environment.YOUTUBE_API_KEY,
+        youtubeDailyLimit: environment.YOUTUBE_DAILY_REQUEST_LIMIT,
+        groqApiKey: environment.GROQ_API_KEY,
+        groqModel: environment.GROQ_MODEL,
+        groqMaxEvidenceItems: environment.GROQ_MAX_EVIDENCE_ITEMS,
+        groqDailyLimit: environment.GROQ_DAILY_ANALYSIS_LIMIT,
+      }),
       groqHotelAnalysisDev({
         apiKey: environment.GROQ_API_KEY,
         model: environment.GROQ_MODEL,
@@ -187,6 +203,78 @@ function groqTranscriptionDev(apiKey?: string): Plugin {
             error:
               "A network error interrupted transcription. Please try again.",
           })
+        }
+      })
+    },
+  }
+}
+
+function hotelAnalysisJobsDev(configuration: {
+  tripadvisorApiKey?: string
+  serpApiKey?: string
+  tavilyApiKey?: string
+  youtubeApiKey?: string
+  youtubeDailyLimit?: string
+  groqApiKey?: string
+  groqModel?: string
+  groqMaxEvidenceItems?: string
+  groqDailyLimit?: string
+}): Plugin {
+  const store = createMemoryHotelAnalysisJobStore()
+  const handlers = createHotelAnalysisJobHandlers({
+    ...configuration,
+    handleGoogleReviews: handleGoogleHotelsReviews,
+    handleTripadvisorReviews: handleTripadvisorHotelReviews,
+    handleYouTube: handleYouTubeHotelEvidence,
+    handleTavily: handleTavilyHotelEvidence,
+    handleGroq: handleGroqHotelAnalysis,
+  })
+  return {
+    name: "hotel-analysis-jobs-dev",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const pathname = (req.url || "").split("?")[0]
+        if (!pathname.startsWith("/api/hotel-analysis/jobs")) return next()
+        const sendResponse = async (response: Response) => {
+          res.statusCode = response.status
+          response.headers.forEach((value, key) => res.setHeader(key, value))
+          res.end(Buffer.from(await response.arrayBuffer()))
+        }
+        try {
+          const chunks: Buffer[] = []
+          for await (const chunk of req)
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+          const request = new Request(`http://localhost${req.url}`, {
+            method: req.method,
+            headers: {
+              "content-type": req.headers["content-type"] || "application/json",
+            },
+            body:
+              req.method === "GET" || req.method === "HEAD"
+                ? undefined
+                : new Uint8Array(Buffer.concat(chunks)),
+          })
+          const response = await handleHotelAnalysisJobs(request, {
+            store,
+            handlers,
+          })
+          await sendResponse(response || new Response(null, { status: 404 }))
+        } catch {
+          await sendResponse(
+            new Response(
+              JSON.stringify({
+                error: {
+                  code: "HOTEL_ANALYSIS_JOB_ERROR",
+                  message: "The hotel analysis job could not be updated",
+                },
+              }),
+              {
+                status: 502,
+                headers: { "Content-Type": "application/json; charset=utf-8" },
+              },
+            ),
+          )
         }
       })
     },
@@ -693,6 +781,7 @@ import { handleYouTubeHotelEvidence } from './youtube-evidence.js'
 import { createD1YouTubeUsageStore } from './youtube-usage-store.js'
 import { handleGroqHotelAnalysis } from './groq-analysis.js'
 import { createD1ProviderUsageStore } from './provider-usage-store.js'
+import { createD1HotelAnalysisJobStore, createHotelAnalysisJobHandlers, handleHotelAnalysisJobs } from './hotel-analysis-jobs.js'
 
 const GROQ_TRANSCRIPTION_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions'
 const GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
@@ -702,6 +791,7 @@ const YOUTUBE_CACHE_SECONDS = 7 * 24 * 60 * 60
 const GROQ_ANALYSIS_CACHE_SECONDS = 7 * 24 * 60 * 60
 let youtubeUsageStore
 let groqAnalysisUsageStore
+let hotelAnalysisJobStore
 
 function createWorkerCache(namespace, maxAgeSeconds) {
   const memory = new Map()
@@ -809,7 +899,7 @@ async function transcribe(request, env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url)
     if (url.pathname === '/api/transcribe') return transcribe(request, env)
     if (url.pathname === '/api/tripadvisor/reviews') {
@@ -832,6 +922,37 @@ export default {
         dailyLimit: env.YOUTUBE_DAILY_REQUEST_LIMIT,
         cache: youtubeEvidenceCache,
         usageStore: youtubeUsageStore,
+      })
+    }
+    if (url.pathname.startsWith('/api/hotel-analysis/jobs')) {
+      youtubeUsageStore ||= createD1YouTubeUsageStore(env.DB)
+      groqAnalysisUsageStore ||= createD1ProviderUsageStore(env.DB, 'groq_analysis')
+      hotelAnalysisJobStore ||= createD1HotelAnalysisJobStore(env.DB)
+      const handlers = createHotelAnalysisJobHandlers({
+        tripadvisorApiKey: env.TRIPADVISOR_API_KEY,
+        serpApiKey: env.SERPAPI_API_KEY,
+        tavilyApiKey: env.TAVILY_API_KEY,
+        youtubeApiKey: env.YOUTUBE_API_KEY,
+        youtubeDailyLimit: env.YOUTUBE_DAILY_REQUEST_LIMIT,
+        groqApiKey: env.GROQ_API_KEY,
+        groqModel: env.GROQ_MODEL,
+        groqMaxEvidenceItems: env.GROQ_MAX_EVIDENCE_ITEMS,
+        groqDailyLimit: env.GROQ_DAILY_ANALYSIS_LIMIT,
+        youtubeCache: youtubeEvidenceCache,
+        youtubeUsageStore,
+        tavilyCache: tavilyAnalysisCache,
+        groqCache: groqAnalysisCache,
+        groqUsageStore: groqAnalysisUsageStore,
+        handleGoogleReviews: handleGoogleHotelsReviews,
+        handleTripadvisorReviews: handleTripadvisorHotelReviews,
+        handleYouTube: handleYouTubeHotelEvidence,
+        handleTavily: handleTavilyHotelEvidence,
+        handleGroq: handleGroqHotelAnalysis,
+      })
+      return handleHotelAnalysisJobs(request, {
+        store: hotelAnalysisJobStore,
+        handlers,
+        waitUntil: (promise) => ctx.waitUntil(promise),
       })
     }
     if (url.pathname === '/api/hotel-analysis') {
@@ -903,6 +1024,10 @@ export default {
       await copyFile(
         path.resolve(root, "server/groq-analysis-service.js"),
         path.resolve(workerDirectory, "groq-analysis-service.js"),
+      )
+      await copyFile(
+        path.resolve(root, "server/hotel-analysis-jobs.js"),
+        path.resolve(workerDirectory, "hotel-analysis-jobs.js"),
       )
     },
   }

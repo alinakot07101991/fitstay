@@ -1,5 +1,9 @@
 import { collection, doc, getDocs, setDoc } from "firebase/firestore"
 import { auth, database } from "./firebase"
+import type { HotelAnalysisResult } from "./hotelAnalysis"
+import type { HotelAnalysisProgress } from "./runHotelAnalysis"
+
+export type StoredHotelAnalysisStatus = "queued" | "processing" | "completed" | "failed"
 
 export type HotelCheckRecord = {
   id: string
@@ -9,6 +13,13 @@ export type HotelCheckRecord = {
   place: string
   hotel: string
   status: "draft" | "checked"
+  analysisJobId?: string
+  analysisStatus?: StoredHotelAnalysisStatus
+  analysisStage?: HotelAnalysisProgress
+  analysisResult?: HotelAnalysisResult
+  analysisError?: string
+  analysisErrorCode?: string
+  analysisPreferenceLabels?: Record<string, string>
   updatedAt: string
 }
 
@@ -36,6 +47,12 @@ function isHotelCheckRecord(value: unknown): value is HotelCheckRecord {
     typeof record.place === "string" &&
     typeof record.hotel === "string" &&
     (record.status === "draft" || record.status === "checked") &&
+    (record.analysisJobId === undefined ||
+      typeof record.analysisJobId === "string") &&
+    (record.analysisStatus === undefined ||
+      ["queued", "processing", "completed", "failed"].includes(
+        record.analysisStatus,
+      )) &&
     typeof record.updatedAt === "string"
   )
 }
@@ -100,12 +117,34 @@ export async function saveHotelCheck(record: HotelCheckRecord) {
   const userRecords = recordsCollection()
   if (!userRecords) return
   try {
-    await setDoc(doc(userRecords, record.id), record, { merge: true })
+    const firestoreRecord = JSON.parse(
+      JSON.stringify(record),
+    ) as HotelCheckRecord
+    await setDoc(doc(userRecords, record.id), firestoreRecord, { merge: true })
   } catch (error) {
     console.warn(
       "Firestore is unavailable; the hotel check remains saved locally.",
       error,
     )
+  }
+}
+
+export function updateHotelCheckRecord(
+  records: HotelCheckRecord[],
+  id: string,
+  changes: Partial<HotelCheckRecord>,
+) {
+  const current = records.find((record) => record.id === id)
+  if (!current) return { records, updatedRecord: null }
+  const updatedRecord: HotelCheckRecord = {
+    ...current,
+    ...changes,
+    id: current.id,
+    updatedAt: new Date().toISOString(),
+  }
+  return {
+    records: upsertLocalHotelCheck(updatedRecord),
+    updatedRecord,
   }
 }
 
