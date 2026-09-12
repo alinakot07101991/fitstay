@@ -75,7 +75,7 @@ const DraftContext = createContext<{
   draftHotel: HotelOption | null
   hotelChecks: HotelCheckRecord[]
   createDraft: (hotel: HotelOption) => void
-  resolveDraft: () => void
+  resolveDraft: (hotelName?: string) => void
 }>({
   hasDraft: false,
   draftHotel: null,
@@ -1188,7 +1188,7 @@ function Home({
                     <Button
                       primary
                       onClick={() => {
-                        resolveDraft()
+                        resolveDraft(identifiedHotel.hotel)
                         go("analysis")
                       }}
                     >
@@ -1990,6 +1990,7 @@ function State({
   go: Go
 }) {
   const c = states[screen]!
+  const { draftHotel, resolveDraft } = useContext(DraftContext)
   const stateHistory: HistoryState =
     screen === "identify"
       ? "draft"
@@ -2031,7 +2032,13 @@ function State({
           <div className="mt-7 flex flex-wrap gap-2">
             {screen === "identify" && (
               <>
-                <Button primary onClick={() => go("analysis")}>
+                <Button
+                  primary
+                  onClick={() => {
+                    resolveDraft(draftHotel?.hotel)
+                    go("analysis")
+                  }}
+                >
                   Confirm and check
                 </Button>
                 <Button onClick={() => go("ambiguous")}>Choose another</Button>
@@ -2538,18 +2545,42 @@ export default function VisualLab() {
     void saveHotelCheck(record)
   }
 
-  const resolveDraft = () => {
-    const result = markLatestDraftChecked(hotelChecks)
+  const resolveDraft = (hotelName?: string) => {
+    const result = markLatestDraftChecked(hotelChecks, hotelName)
     setHotelChecks(result.records)
-    setDraftHotel(null)
+    const remainingDraft = result.records.find(
+      (record) => record.status === "draft",
+    )
+    setDraftHotel(
+      remainingDraft
+        ? {
+            place: remainingDraft.place,
+            hotel: remainingDraft.hotel,
+            image: destinationImages[remainingDraft.hotel],
+          }
+        : null,
+    )
     if (result.updatedRecord) void saveHotelCheck(result.updatedRecord)
   }
+
+  const persistedDraft = hotelChecks.find(
+    (record) => record.status === "draft",
+  )
+  const currentDraftHotel =
+    draftHotel ||
+    (persistedDraft
+      ? {
+          place: persistedDraft.place,
+          hotel: persistedDraft.hotel,
+          image: destinationImages[persistedDraft.hotel],
+        }
+      : null)
 
   const preview = (
     <DraftContext.Provider
       value={{
-        hasDraft: Boolean(draftHotel),
-        draftHotel,
+        hasDraft: Boolean(currentDraftHotel),
+        draftHotel: currentDraftHotel,
         hotelChecks,
         createDraft,
         resolveDraft,

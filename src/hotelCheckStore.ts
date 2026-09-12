@@ -112,8 +112,17 @@ export async function loadHotelChecks() {
   }
 }
 
-export function markLatestDraftChecked(records: HotelCheckRecord[]) {
-  const latestDraft = records.find((record) => record.status === "draft")
+export function markLatestDraftChecked(
+  records: HotelCheckRecord[],
+  hotelName?: string,
+) {
+  const normalizedHotelName = hotelName?.trim().toLocaleLowerCase()
+  const latestDraft = records.find(
+    (record) =>
+      record.status === "draft" &&
+      (!normalizedHotelName ||
+        record.hotel.trim().toLocaleLowerCase() === normalizedHotelName),
+  )
   if (!latestDraft) return { records, updatedRecord: null }
 
   const updatedRecord: HotelCheckRecord = {

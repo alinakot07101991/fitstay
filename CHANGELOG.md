@@ -27,6 +27,14 @@
 
 ## Історія
 
+### 2026-09-12 — Актуальна history і стабільний Draft badge на всіх product screens
+
+- Тип: Product / UX / Code
+- Статус: Погоджено
+- Зміна: всі product screens використовують єдину актуальну hotel-check history з context. Draft status відновлюється з persisted record під час навігації та зникає лише після explicit start-check action; обидві confirmation actions тепер завершують відповідний draft перед переходом до analysis.
+- Причина: навігація до Saved hotels, Settings, Profile, result states або інших сторінок не повинна приховувати незапущений draft чи показувати застарілу історію.
+- Вплив: lifecycle `draft → checked` прив’язано до запуску перевірки; простий перехід між сторінками не змінює status.
+
 ### 2026-09-12 — Повна search history під час нового hotel search
 
 - Тип: Product / UX / Code
