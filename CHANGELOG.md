@@ -27,6 +27,15 @@
 
 ## Історія
 
+### 2026-09-12 — Інтегровано Tavily open-web evidence provider
+
+- Тип: Code / Data / Operations
+- Статус: Погоджено
+- Зміна: додано незалежний server-only Tavily provider, який приймає canonical Google Places hotel і prioritized preferences, групує споріднені критерії максимум у 5 targeted Search queries, нормалізує traceable web evidence та selectively запускає basic Extract максимум для 5 URL із недостатнім snippet. Research і Crawl API не використовуються; кожен зовнішній запит має не більше одного retry й входить у жорсткий per-analysis budget.
+- Причина: доповнити structured review sources відкритими публічними evidence sources без запуску AI-аналізу та без uncontrolled crawling.
+- Артефакти: `server/tavily-evidence-service.js`, `server/tavily-evidence.js`, declarations, integration tests, `src/tavilyEvidence.ts`, `vite.config.ts`, `.env.example` і Sites runtime environment.
+- Вплив: успішний hotel + preference analysis кешується на 7 днів у Cloudflare Cache API з in-memory fallback для local development; UI, Google Places identity, SerpApi reviews, scoring і Groq analysis не змінено.
+
 ### 2026-09-11 — Google Places став canonical hotel identity layer
 
 - Тип: Code / Data / Operations
