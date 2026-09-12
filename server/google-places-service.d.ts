@@ -55,4 +55,5 @@ export declare function createGooglePlacesService(options: {
     city: string,
     country: string,
   ): Promise<CanonicalGooglePlaceHotel>
+  resolveHotelQuery(query: string): Promise<CanonicalGooglePlaceHotel>
 }

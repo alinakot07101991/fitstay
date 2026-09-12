@@ -12,7 +12,7 @@ export const GOOGLE_PLACES_FIELD_MASK = [
   "places.userRatingCount",
 ].join(",")
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_CACHE_ENTRIES = 500
 const sharedResolutionCache = new Map()
 const sharedInFlightResolutions = new Map()
@@ -224,6 +224,10 @@ function cacheKey(hotelName, city, country) {
   return [hotelName, city, country].map(normalizeForMatch).join("|")
 }
 
+function queryCacheKey(query) {
+  return `query|${normalizeForMatch(query)}`
+}
+
 function readCache(cache, key, now) {
   const entry = cache.get(key)
   if (!entry) return null
@@ -400,5 +404,70 @@ export function createGooglePlacesService(options) {
     return resolution
   }
 
-  return { searchHotel, getHotelCandidates, resolveHotel }
+  async function resolveHotelQuery(query) {
+    const key = queryCacheKey(query)
+    const cached = readCache(cache, key, now())
+    if (cached) {
+      logger.info?.("[google-places] cache hit", {
+        query,
+        selectedHotel: cached.name,
+        placeId: cached.placeId,
+      })
+      return cached
+    }
+    if (inFlight.has(key)) return inFlight.get(key)
+
+    const resolution = searchHotel(query)
+      .then((candidates) => {
+        const lodgingCandidates = candidates.filter(
+          (candidate) =>
+            candidate.placeId &&
+            candidate.name &&
+            candidate.primaryType &&
+            LODGING_TYPES.has(candidate.primaryType),
+        )
+        if (lodgingCandidates.length === 0) {
+          throw new GooglePlacesServiceError(
+            "hotel_not_found",
+            "No matching hotel was found in Google Places",
+            404,
+          )
+        }
+
+        const normalizedQuery = normalizeForMatch(query)
+        const exactCandidates = lodgingCandidates.filter((candidate) => {
+          const name = normalizeForMatch(candidate.name)
+          return (
+            normalizedQuery === name ||
+            normalizedQuery.startsWith(`${name} `) ||
+            normalizedQuery.endsWith(` ${name}`)
+          )
+        })
+        if (exactCandidates.length === 1 || lodgingCandidates.length === 1) {
+          const hotel = publicHotel(
+            exactCandidates.length === 1
+              ? exactCandidates[0]
+              : lodgingCandidates[0],
+          )
+          writeCache(cache, key, hotel, now())
+          logger.info?.("[google-places] hotel selected", {
+            selectedHotel: hotel.name,
+            placeId: hotel.placeId,
+          })
+          return hotel
+        }
+
+        throw new GooglePlacesServiceError(
+          "ambiguous_hotel",
+          "More than one hotel matches this search. Add the destination or a more complete hotel name",
+          409,
+          lodgingCandidates.slice(0, 10).map(publicHotel),
+        )
+      })
+      .finally(() => inFlight.delete(key))
+    inFlight.set(key, resolution)
+    return resolution
+  }
+
+  return { searchHotel, getHotelCandidates, resolveHotel, resolveHotelQuery }
 }

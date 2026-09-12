@@ -3,6 +3,7 @@ import { auth, database } from "./firebase"
 
 export type HotelCheckRecord = {
   id: string
+  placeId?: string
   place: string
   hotel: string
   status: "draft" | "checked"
@@ -27,6 +28,7 @@ function isHotelCheckRecord(value: unknown): value is HotelCheckRecord {
   const record = value as Partial<HotelCheckRecord>
   return (
     typeof record.id === "string" &&
+    (record.placeId === undefined || typeof record.placeId === "string") &&
     typeof record.place === "string" &&
     typeof record.hotel === "string" &&
     (record.status === "draft" || record.status === "checked") &&
@@ -54,7 +56,7 @@ function writeLocalHotelChecks(records: HotelCheckRecord[]) {
 }
 
 export function createHotelCheckRecord(
-  hotel: Pick<HotelCheckRecord, "place" | "hotel">,
+  hotel: Pick<HotelCheckRecord, "place" | "hotel" | "placeId">,
 ): HotelCheckRecord {
   const normalizedHotel = hotel.hotel
     .trim()
@@ -64,6 +66,7 @@ export function createHotelCheckRecord(
 
   return {
     id: normalizedHotel || crypto.randomUUID(),
+    placeId: hotel.placeId,
     place: hotel.place,
     hotel: hotel.hotel,
     status: "draft",

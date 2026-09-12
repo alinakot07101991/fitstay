@@ -104,6 +104,88 @@ test("returns multiple strong matches as ambiguous", async () => {
   assert.equal(JSON.stringify(payload).includes("server-secret"), false)
 })
 
+test("accepts a freeform full hotel name with destination", async () => {
+  let calls = 0
+  const response = await handleGooglePlacesHotelResolution(
+    request({ query: "Hotel Eden Rome Italy" }),
+    "server-secret",
+    {
+      cache: new Map(),
+      inFlight: new Map(),
+      logger: { info() {}, warn() {} },
+      fetchImpl: async (_url, init) => {
+        calls += 1
+        assert.equal(JSON.parse(init.body).textQuery, "Hotel Eden Rome Italy")
+        return Response.json({ places: [hotel()] })
+      },
+    },
+  )
+
+  assert.equal(response.status, 200)
+  assert.equal(calls, 1)
+  assert.equal((await response.json()).hotel.placeId, "ChIJ-hotel-eden")
+})
+
+test("returns worldwide partial-name matches for user selection", async () => {
+  const response = await handleGooglePlacesHotelResolution(
+    request({ query: "Mitsis Greece" }),
+    "server-secret",
+    {
+      cache: new Map(),
+      inFlight: new Map(),
+      logger: { info() {}, warn() {} },
+      fetchImpl: async () =>
+        Response.json({
+          places: [
+            hotel({
+              id: "mitsis-rinela",
+              displayName: { text: "Mitsis Rinela" },
+              formattedAddress: "Crete, Greece",
+            }),
+            hotel({
+              id: "mitsis-alila",
+              displayName: { text: "Mitsis Selection Alila" },
+              formattedAddress: "Rhodes, Greece",
+            }),
+          ],
+        }),
+    },
+  )
+
+  assert.equal(response.status, 409)
+  const payload = await response.json()
+  assert.equal(payload.error.code, "ambiguous_hotel")
+  assert.deepEqual(
+    payload.candidates.map((candidate) => candidate.placeId),
+    ["mitsis-rinela", "mitsis-alila"],
+  )
+})
+
+test("filters non-lodging places from freeform hotel results", async () => {
+  const response = await handleGooglePlacesHotelResolution(
+    request({ query: "Eden Rome" }),
+    "server-secret",
+    {
+      cache: new Map(),
+      inFlight: new Map(),
+      logger: { info() {}, warn() {} },
+      fetchImpl: async () =>
+        Response.json({
+          places: [
+            hotel({ primaryType: "restaurant" }),
+            hotel({
+              id: "real-hotel",
+              displayName: { text: "Eden Roma" },
+            }),
+          ],
+        }),
+    },
+  )
+
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).hotel.placeId, "real-hotel")
+})
+
 test("accepts a unique exact hotel when Google localizes the city name", async () => {
   const response = await handleGooglePlacesHotelResolution(
     request({ hotelName: "Hotel Eden", city: "Rome", country: "Italy" }),

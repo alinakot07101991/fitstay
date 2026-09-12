@@ -138,3 +138,45 @@ export async function resolveGooglePlaceHotel(input: {
   inFlightResolutions.set(key, request)
   return request
 }
+
+export async function searchGooglePlaceHotels(input: {
+  query: string
+  signal?: AbortSignal
+}): Promise<CanonicalGooglePlaceHotel> {
+  const key = requestKey("query", input.query, "")
+  const cached = readSessionCache(key)
+  if (cached) return cached
+  const existing = inFlightResolutions.get(key)
+  if (existing) return existing
+
+  const request = fetch("/api/google-places/resolve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: input.query }),
+    signal: input.signal,
+  })
+    .then(async (response) => {
+      const payload = (await response
+        .json()
+        .catch(
+          () => null,
+        )) as GooglePlacesResponse | GooglePlacesErrorPayload | null
+      if (!response.ok) {
+        const errorPayload = payload as GooglePlacesErrorPayload | null
+        throw new GooglePlacesResolutionError(
+          response.status,
+          errorPayload?.error?.code || "google_places_request_failed",
+          errorPayload?.error?.message ||
+            "The hotel could not be identified with Google Places",
+          errorPayload?.candidates || [],
+        )
+      }
+      const hotel = (payload as GooglePlacesResponse).hotel
+      writeSessionCache(key, hotel)
+      return hotel
+    })
+    .finally(() => inFlightResolutions.delete(key))
+
+  inFlightResolutions.set(key, request)
+  return request
+}

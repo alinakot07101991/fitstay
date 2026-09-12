@@ -43,6 +43,11 @@ import { auth } from "./firebase"
 import { useVoiceTranscription } from "./useVoiceTranscription"
 import { completeOnboarding } from "./onboardingStore"
 import {
+  GooglePlacesResolutionError,
+  searchGooglePlaceHotels,
+  type CanonicalGooglePlaceHotel,
+} from "./googlePlaces"
+import {
   createHotelCheckRecord,
   loadHotelChecks,
   markLatestDraftChecked,
@@ -60,6 +65,7 @@ type Go = (id: ScreenId) => void
 type HotelOption = {
   place: string
   hotel: string
+  placeId?: string
   image?: string
   domains?: string[]
 }
@@ -716,75 +722,40 @@ function Shell({
   )
 }
 
-type HotelLookup = { kind: "identified" hotel: HotelOption } | {
-  kind: "matches"
-  hotels: HotelOption[]
-} | { kind: "clarify" } | { kind: "none" }
+function hotelSearchQuery(value: string) {
+  const trimmed = value.trim()
+  if (!/^(https?:\/\/|www\.)\S+/i.test(trimmed)) return trimmed
+  try {
+    const url = new URL(
+      /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`,
+    )
+    const pathTerms = decodeURIComponent(url.pathname)
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(
+        (term) =>
+          term.length > 1 &&
+          !["en", "de", "fr", "it", "es", "hotel", "hotels"].includes(
+            term.toLocaleLowerCase(),
+          ),
+      )
+    if (pathTerms.length) return pathTerms.join(" ")
+    return url.hostname.replace(/^www\./i, "").split(".")[0]
+  } catch {
+    return trimmed
+  }
+}
 
-const hotelCatalog: HotelOption[] = [
-  defaultDraftHotel,
-  {
-    place: "Lindos, Rhodes, Greece",
-    hotel: "Lindos Grand Resort & Spa",
-    image: rhodesImage,
-    domains: ["lindosgrand.com"],
-  },
-  {
-    place: "Bali, Indonesia",
-    hotel: "The Apurva Kempinski Bali",
-    image: baliImage,
-  },
-  {
-    place: "Barcelona, Spain",
-    hotel: "Hotel Neri Relais & Châteaux",
-    image: barcelonaImage,
-  },
-  { place: "Maldives", hotel: "Baros Maldives", image: maldivesImage },
-  { place: "Prague, Czechia", hotel: "Hotel Josef", image: pragueImage },
-  {
-    place: "Crete, Greece",
-    hotel: "Mitsis Rinela Beach Resort & Spa",
-    image: rhodesImage,
-  },
-  {
-    place: "Crete, Greece",
-    hotel: "Mitsis Selection Laguna",
-    image: rhodesImage,
-  },
-  {
-    place: "Kos, Greece",
-    hotel: "Mitsis Selection Blue Domes",
-    image: maldivesImage,
-  },
-  { place: "Kos, Greece", hotel: "Mitsis Norida", image: baliImage },
-  {
-    place: "Rhodes, Greece",
-    hotel: "Mitsis Selection Alila",
-    image: rhodesImage,
-  },
-  {
-    place: "Rhodes, Greece",
-    hotel: "Mitsis Rodos Village",
-    image: barcelonaImage,
-  },
-  {
-    place: "London, United Kingdom",
-    hotel: "Hilton London Metropole",
-    image: barcelonaImage,
-  },
-  { place: "Bali, Indonesia", hotel: "Hilton Bali Resort", image: baliImage },
-  {
-    place: "Honolulu, USA",
-    hotel: "Hilton Hawaiian Village",
-    image: maldivesImage,
-  },
-  {
-    place: "Dubai, UAE",
-    hotel: "Hilton Dubai Palm Jumeirah",
-    image: rhodesImage,
-  },
-  { place: "Tokyo, Japan", hotel: "Hilton Tokyo", image: pragueImage },
-]
+function hotelOptionFromGoogle(hotel: CanonicalGooglePlaceHotel): HotelOption {
+  return {
+    place:
+      hotel.formattedAddress ||
+      [hotel.city, hotel.country].filter(Boolean).join(", ") ||
+      "Location unavailable",
+    hotel: hotel.name,
+    placeId: hotel.placeId,
+    image: destinationImages[hotel.name],
+  }
+}
 
 function Home({
   viewport,
@@ -803,11 +774,13 @@ function Home({
   const [chatMessages, setChatMessages] = useState<string[]>([])
   const [error, setError] = useState("")
   const [chatStage, setChatStage] =
-    useState<"idle" | "processing" | "confirmation" | "matches" | "clarify" | "none" | "awaiting-input">(
+    useState<"idle" | "processing" | "confirmation" | "matches" | "clarify" | "none" | "search-error" | "awaiting-input">(
       "idle",
     )
-  const [pendingLookup, setPendingLookup] = useState<HotelLookup | null>(null)
   const [candidates, setCandidates] = useState<HotelOption[]>([])
+  const [searchError, setSearchError] = useState("")
+  const searchRequestId = useRef(0)
+  const searchInFlight = useRef(false)
   const [templateModal, setTemplateModal] = useState(false)
   const [identifiedHotel, setIdentifiedHotel] = useState<HotelOption | null>(
     null,
@@ -831,7 +804,6 @@ function Home({
     const existingCheck = existingCheckFor(hotel)
     if (!existingCheck) return false
 
-    setPendingLookup(null)
     setCandidates([])
     setIdentifiedHotel(hotel)
     if (existingCheck.status === "draft") {
@@ -843,110 +815,54 @@ function Home({
     return true
   }
 
-  useEffect(() => {
-    if (chatStage !== "processing" || !pendingLookup) return
-    const timer = window.setTimeout(() => {
-      if (pendingLookup.kind === "identified") {
-        setIdentifiedHotel(pendingLookup.hotel)
-        createDraft(pendingLookup.hotel)
-        setChatStage("confirmation")
-      } else if (pendingLookup.kind === "matches") {
-        setCandidates(pendingLookup.hotels)
-        setChatStage("matches")
-      } else {
-        setChatStage(pendingLookup.kind)
-      }
-      setPendingLookup(null)
-    }, 1500)
-    return () => window.clearTimeout(timer)
-  }, [chatStage, pendingLookup])
-
-  const findHotels = (value: string): HotelLookup => {
-    const normalized = value.trim().toLocaleLowerCase()
-    const isLink = /^(https?:\/\/|www\.)\S+/i.test(value.trim())
-    if (isLink) {
-      const linkValue = /^https?:\/\//i.test(value.trim())
-        ? value.trim()
-        : `https://${value.trim()}`
-      try {
-        const url = new URL(linkValue)
-        const host = url.hostname.toLocaleLowerCase().replace(/^www\./, "")
-        const domainMatch = hotelCatalog.find((item) =>
-          item.domains?.some(
-            (domain) => host === domain || host.endsWith(`.${domain}`),
-          ),
-        )
-        if (domainMatch) return { kind: "identified", hotel: domainMatch }
-
-        const linkTerms = decodeURIComponent(`${url.hostname} ${url.pathname}`)
-          .toLocaleLowerCase()
-          .split(/[^\p{L}\p{N}]+/u)
-          .filter((term) => term.length > 2)
-        const pathMatches = hotelCatalog.filter((item) => {
-          const hotelTerms = item.hotel
-            .toLocaleLowerCase()
-            .split(/[^\p{L}\p{N}]+/u)
-            .filter(
-              (term) => term.length > 3 && !["hotel", "resort"].includes(term),
-            )
-          return (
-            hotelTerms.length > 0 &&
-            hotelTerms.every((term) => linkTerms.includes(term))
-          )
-        })
-        if (pathMatches.length === 1)
-          return { kind: "identified", hotel: pathMatches[0] }
-      } catch {
-        return { kind: "none" }
-      }
-      return { kind: "none" }
-    }
-
-    const exact = hotelCatalog.find(
-      (item) => item.hotel.toLocaleLowerCase() === normalized,
-    )
-    if (exact) return { kind: "identified", hotel: exact }
-
-    const genericChain =
-      /^(hilton|marriott|hyatt|mitsis|radisson|sheraton)(?: hotels?)?$/.test(
-        normalized,
-      )
-    if (genericChain) return { kind: "clarify" }
-
-    const genericWords = new Set([
-      "hotel",
-      "hotels",
-      "resort",
-      "resorts",
-      "spa",
-      "the",
-    ])
-    const terms = normalized
-      .split(/\s+/)
-      .filter((term) => term && !genericWords.has(term))
-    if (terms.length === 0) return { kind: "none" }
-
-    const matches = hotelCatalog.filter((item) => {
-      const searchable = `${item.hotel} ${item.place}`.toLocaleLowerCase()
-      return terms.every((term) => searchable.includes(term))
-    })
-    if (matches.length === 0) return { kind: "none" }
-    if (matches.length === 1) return { kind: "identified", hotel: matches[0] }
-    if (matches.length > 4) return { kind: "clarify" }
-    return { kind: "matches", hotels: matches }
-  }
-
-  const runSearch = (value: string) => {
+  const runSearch = async (value: string) => {
     const query = value.trim()
-    if (!query) return
-    const lookup = findHotels(query)
-    if (lookup.kind === "identified" && openExistingCheck(lookup.hotel)) return
+    if (!query || searchInFlight.current) return
+    searchInFlight.current = true
+    const requestId = ++searchRequestId.current
     setError("")
-    setChatMessages((messages) => [...messages, query])
+    setSearchError("")
+    setChatMessages((messages) => [
+      ...messages,
+      /^(https?:\/\/|www\.)/i.test(query) ? "Hotel link" : query,
+    ])
     setIdentifiedHotel(null)
     setCandidates([])
-    setPendingLookup(lookup)
     setChatStage("processing")
+    try {
+      const result = await searchGooglePlaceHotels({
+        query: hotelSearchQuery(query),
+      })
+      if (requestId !== searchRequestId.current) return
+      const hotel = hotelOptionFromGoogle(result)
+      if (openExistingCheck(hotel)) return
+      setIdentifiedHotel(hotel)
+      createDraft(hotel)
+      setChatStage("confirmation")
+    } catch (caught) {
+      if (requestId !== searchRequestId.current) return
+      if (caught instanceof GooglePlacesResolutionError) {
+        if (caught.code === "ambiguous_hotel" && caught.candidates.length) {
+          const matches = caught.candidates.map(hotelOptionFromGoogle)
+          if (matches.length > 4) {
+            setChatStage("clarify")
+          } else {
+            setCandidates(matches)
+            setChatStage("matches")
+          }
+        } else if (caught.code === "hotel_not_found") {
+          setChatStage("none")
+        } else {
+          setSearchError(caught.message)
+          setChatStage("search-error")
+        }
+      } else {
+        setSearchError("Hotel search is temporarily unavailable. Try again")
+        setChatStage("search-error")
+      }
+    } finally {
+      if (requestId === searchRequestId.current) searchInFlight.current = false
+    }
   }
 
   const submitHotel = (event: React.FormEvent) => {
@@ -955,13 +871,13 @@ function Home({
       setError("Enter a hotel name, destination, or link.")
       return
     }
-    runSearch(inputValue)
+    void runSearch(inputValue)
   }
 
   const submitChatMessage = (event: React.FormEvent) => {
     event.preventDefault()
     if (!composerValue.trim()) return
-    runSearch(composerValue)
+    void runSearch(composerValue)
     setComposerValue("")
   }
 
@@ -1144,6 +1060,15 @@ function Home({
                   <p className="mt-2 text-[14px] text-[#817a73]">
                     Try another word, a destination, the full hotel name, or a
                     hotel link
+                  </p>
+                </div>
+              )}
+
+              {chatStage === "search-error" && (
+                <div className="mt-7" aria-live="polite">
+                  <p className="text-[14px]">Hotel search is unavailable</p>
+                  <p className="mt-2 text-[14px] text-[#817a73]">
+                    {searchError || "Try again in a moment"}
                   </p>
                 </div>
               )}
@@ -2527,6 +2452,7 @@ export default function VisualLab() {
       ? {
           place: storedDraft.place,
           hotel: storedDraft.hotel,
+          placeId: storedDraft.placeId,
           image: destinationImages[storedDraft.hotel],
         }
       : null
@@ -2553,9 +2479,10 @@ export default function VisualLab() {
     )
     setDraftHotel(
       remainingDraft
-        ? {
+          ? {
             place: remainingDraft.place,
             hotel: remainingDraft.hotel,
+            placeId: remainingDraft.placeId,
             image: destinationImages[remainingDraft.hotel],
           }
         : null,
@@ -2572,6 +2499,7 @@ export default function VisualLab() {
       ? {
           place: persistedDraft.place,
           hotel: persistedDraft.hotel,
+          placeId: persistedDraft.placeId,
           image: destinationImages[persistedDraft.hotel],
         }
       : null)

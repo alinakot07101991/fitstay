@@ -76,10 +76,12 @@ export async function handleGooglePlacesHotelResolution(
     typeof input?.hotelName === "string" ? input.hotelName.trim() : ""
   const city = typeof input?.city === "string" ? input.city.trim() : ""
   const country = typeof input?.country === "string" ? input.country.trim() : ""
+  const query = typeof input?.query === "string" ? input.query.trim() : ""
+  const hasStructuredQuery = Boolean(hotelName && city && country)
+  const hasFreeformQuery = Boolean(query)
   if (
-    !hotelName ||
-    !city ||
-    !country ||
+    (!hasStructuredQuery && !hasFreeformQuery) ||
+    query.length > 500 ||
     hotelName.length > 500 ||
     city.length > 120 ||
     country.length > 120
@@ -88,7 +90,7 @@ export async function handleGooglePlacesHotelResolution(
       {
         error: {
           code: "invalid_hotel_query",
-          message: "Provide a hotel name, city, and country",
+          message: "Provide a hotel name or a hotel name with destination",
         },
       },
       400,
@@ -104,7 +106,9 @@ export async function handleGooglePlacesHotelResolution(
     now: options.now,
   })
   try {
-    const hotel = await service.resolveHotel(hotelName, city, country)
+    const hotel = hasFreeformQuery
+      ? await service.resolveHotelQuery(query)
+      : await service.resolveHotel(hotelName, city, country)
     return json({ hotel })
   } catch (error) {
     return errorResponse(error)
