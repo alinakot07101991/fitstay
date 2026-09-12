@@ -1,5 +1,8 @@
 import type { ProviderUsageStore } from "./provider-usage-store.js"
-import type { GroqAnalysisCache, HotelAnalysisResult } from "./groq-analysis-service.js"
+import type {
+  GroqAnalysisCache,
+  HotelAnalysisResult,
+} from "./groq-analysis-service.js"
 
 export declare const MAX_GROQ_ANALYSIS_REQUEST_BYTES: number
 
@@ -9,6 +12,7 @@ export declare function handleGroqHotelAnalysis(
   options?: {
     model?: string
     maxEvidenceItems?: unknown
+    maxBatches?: unknown
     dailyAnalysisLimit?: unknown
     fetchImpl?: typeof fetch
     cache?: GroqAnalysisCache

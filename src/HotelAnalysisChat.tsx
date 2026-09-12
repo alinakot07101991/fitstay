@@ -472,6 +472,7 @@ export function HotelAnalysisResultView({
   const checked = result.preferences.filter(
     (item) => item.status !== "insufficient_evidence",
   ).length
+  const analysisBatches = result.evidenceStats.analysisBatches ?? 1
   const explanation = useMemo(() => {
     const positive = positives.slice(0, 2).map((item) => sentence(item.summary))
     const uncertain = risks.slice(0, 1).map((item) => sentence(item.summary))
@@ -641,7 +642,14 @@ export function HotelAnalysisResultView({
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <span className="rounded-full bg-white px-3 py-2 text-[12px]">
-            {result.evidenceStats.evidenceItemsAnalyzed} evidence items analyzed
+            {result.evidenceStats.totalEvidenceItems} items collected
+          </span>
+          <span className="rounded-full bg-white px-3 py-2 text-[12px]">
+            {result.evidenceStats.evidenceItemsAnalyzed} items analyzed
+          </span>
+          <span className="rounded-full bg-white px-3 py-2 text-[12px]">
+            {analysisBatches} analysis{" "}
+            {analysisBatches === 1 ? "batch" : "batches"}
           </span>
           <span className="rounded-full bg-white px-3 py-2 text-[12px]">
             {result.evidenceStats.independentSourceCount} sources checked

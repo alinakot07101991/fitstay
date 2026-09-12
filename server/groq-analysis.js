@@ -146,7 +146,10 @@ export async function handleGroqHotelAnalysis(request, apiKey, options = {}) {
   let raw
   try {
     const body = await request.text()
-    if (new TextEncoder().encode(body).byteLength > MAX_GROQ_ANALYSIS_REQUEST_BYTES) {
+    if (
+      new TextEncoder().encode(body).byteLength >
+      MAX_GROQ_ANALYSIS_REQUEST_BYTES
+    ) {
       return json(
         {
           status: "error",
@@ -163,7 +166,10 @@ export async function handleGroqHotelAnalysis(request, apiKey, options = {}) {
     return json(
       {
         status: "error",
-        error: { code: "INVALID_JSON", message: "A valid JSON body is required" },
+        error: {
+          code: "INVALID_JSON",
+          message: "A valid JSON body is required",
+        },
       },
       400,
     )
@@ -175,7 +181,8 @@ export async function handleGroqHotelAnalysis(request, apiKey, options = {}) {
         status: "error",
         error: {
           code: "INVALID_HOTEL_ANALYSIS_REQUEST",
-          message: "Provide a canonical hotel, preferences and normalized evidence",
+          message:
+            "Provide a canonical hotel, preferences and normalized evidence",
         },
       },
       400,
@@ -186,6 +193,7 @@ export async function handleGroqHotelAnalysis(request, apiKey, options = {}) {
     apiKey,
     model: options.model,
     maxEvidenceItems: options.maxEvidenceItems,
+    maxBatches: options.maxBatches,
     dailyAnalysisLimit: options.dailyAnalysisLimit,
     fetchImpl: options.fetchImpl,
     cache: options.cache,
@@ -196,7 +204,10 @@ export async function handleGroqHotelAnalysis(request, apiKey, options = {}) {
     sleep: options.sleep,
   })
   try {
-    return json({ status: "success", ...(await service.analyzeHotelPreferences(input)) })
+    return json({
+      status: "success",
+      ...(await service.analyzeHotelPreferences(input)),
+    })
   } catch (error) {
     return errorResponse(error)
   }

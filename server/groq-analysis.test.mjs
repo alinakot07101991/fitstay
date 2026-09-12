@@ -3,10 +3,12 @@ import test from "node:test"
 
 import {
   DEFAULT_GROQ_DAILY_ANALYSIS_LIMIT,
+  DEFAULT_GROQ_MAX_BATCHES,
   DEFAULT_GROQ_MAX_EVIDENCE_ITEMS,
   DEFAULT_GROQ_MODEL,
   buildGroqMessages,
   calculateMatchScore,
+  mergeBatchClassifications,
   prepareEvidence,
   validateGroqStructuredOutput,
 } from "./groq-analysis-service.js"
@@ -503,7 +505,9 @@ test("retries an oversized analysis once with a compact evidence set", async () 
       const output = classification()
       output.preferences = output.preferences.map((item, index) => ({
         ...item,
-        positiveEvidenceIds: index === 0 ? [ids[0]] : [],
+        status: "match",
+        confidence: "medium",
+        positiveEvidenceIds: [ids[index % ids.length]],
         negativeEvidenceIds: [],
       }))
       return Response.json({
@@ -515,11 +519,108 @@ test("retries an oversized analysis once with a compact evidence set", async () 
   assert.equal(calls, 2)
   assert.ok(initialRequestLength < 30_000)
   assert.ok(compactPrompt.length < 15_000)
-  assert.equal((await response.json()).evidenceStats.evidenceItemsAnalyzed, 15)
+  assert.equal((await response.json()).evidenceStats.evidenceItemsAnalyzed, 20)
+})
+
+test("analyzes the full cleaned corpus in controlled sequential batches", async () => {
+  const batchEvidence = Array.from({ length: 95 }, (_, index) => ({
+    source: index % 2 ? "google_hotels" : "tripadvisor",
+    type: "review",
+    sourceId: `batch-${index}`,
+    text: `Quiet rooms, reliable wifi and breakfast feedback ${index}`,
+    publishedAt: `2026-08-${String((index % 28) + 1).padStart(2, "0")}T10:00:00Z`,
+  }))
+  let calls = 0
+  const response = await handleGroqHotelAnalysis(
+    analysisRequest({ evidence: batchEvidence }),
+    "server-secret",
+    options(
+      async (_input, init) => {
+        calls += 1
+        const body = JSON.parse(init.body)
+        const ids =
+          body.response_format.json_schema.schema.properties.preferences.items
+            .properties.positiveEvidenceIds.items.enum
+        const output = {
+          preferences: preferences.map((preference, index) => ({
+            preferenceId: preference.id,
+            status: "match",
+            confidence: "medium",
+            summary: "This batch contains relevant positive evidence",
+            positiveEvidenceIds: [ids[index % ids.length]],
+            negativeEvidenceIds: [],
+          })),
+          overallConfidence: "medium",
+        }
+        return Response.json({
+          choices: [{ message: { content: JSON.stringify(output) } }],
+        })
+      },
+      { maxEvidenceItems: 40, maxBatches: 3 },
+    ),
+  )
+  const payload = await response.json()
+  assert.equal(response.status, 200)
+  assert.equal(calls, 3)
+  assert.equal(payload.evidenceStats.totalEvidenceItems, 95)
+  assert.equal(payload.evidenceStats.evidenceItemsAnalyzed, 95)
+  assert.equal(payload.evidenceStats.analysisBatches, 3)
+  assert.equal(payload.evidenceStats.evidenceLimitApplied, false)
+})
+
+test("merges contradictory batch conclusions into mixed evidence", () => {
+  const emptyPreferences = preferences.slice(1).map((preference) => ({
+    preferenceId: preference.id,
+    status: "insufficient_evidence",
+    confidence: "low",
+    summary: "No relevant evidence in this batch",
+    positiveEvidenceIds: [],
+    negativeEvidenceIds: [],
+  }))
+  const merged = mergeBatchClassifications(
+    [
+      {
+        preferences: [
+          {
+            preferenceId: "quiet",
+            status: "match",
+            confidence: "medium",
+            summary: "Several guests describe quiet rooms",
+            positiveEvidenceIds: ["review:positive"],
+            negativeEvidenceIds: [],
+          },
+          ...emptyPreferences,
+        ],
+        overallConfidence: "medium",
+      },
+      {
+        preferences: [
+          {
+            preferenceId: "quiet",
+            status: "mismatch",
+            confidence: "medium",
+            summary: "Other guests report disruptive noise",
+            positiveEvidenceIds: [],
+            negativeEvidenceIds: ["review:negative"],
+          },
+          ...emptyPreferences,
+        ],
+        overallConfidence: "medium",
+      },
+    ],
+    preferences,
+  )
+  const quiet = merged.preferences.find(
+    (preference) => preference.preferenceId === "quiet",
+  )
+  assert.equal(quiet.status, "mixed")
+  assert.deepEqual(quiet.positiveEvidenceIds, ["review:positive"])
+  assert.deepEqual(quiet.negativeEvidenceIds, ["review:negative"])
 })
 
 test("uses conservative configuration defaults", () => {
   assert.equal(DEFAULT_GROQ_MODEL, "openai/gpt-oss-120b")
-  assert.equal(DEFAULT_GROQ_MAX_EVIDENCE_ITEMS, 30)
+  assert.equal(DEFAULT_GROQ_MAX_EVIDENCE_ITEMS, 40)
+  assert.equal(DEFAULT_GROQ_MAX_BATCHES, 14)
   assert.equal(DEFAULT_GROQ_DAILY_ANALYSIS_LIMIT, 20)
 })

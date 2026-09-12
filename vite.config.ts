@@ -63,12 +63,14 @@ export default defineConfig(({ mode }) => {
         groqApiKey: environment.GROQ_API_KEY,
         groqModel: environment.GROQ_MODEL,
         groqMaxEvidenceItems: environment.GROQ_MAX_EVIDENCE_ITEMS,
+        groqMaxBatches: environment.GROQ_MAX_BATCHES,
         groqDailyLimit: environment.GROQ_DAILY_ANALYSIS_LIMIT,
       }),
       groqHotelAnalysisDev({
         apiKey: environment.GROQ_API_KEY,
         model: environment.GROQ_MODEL,
         maxEvidenceItems: environment.GROQ_MAX_EVIDENCE_ITEMS,
+        maxBatches: environment.GROQ_MAX_BATCHES,
         dailyAnalysisLimit: environment.GROQ_DAILY_ANALYSIS_LIMIT,
       }),
       sitesStaticWorker(),
@@ -218,6 +220,7 @@ function hotelAnalysisJobsDev(configuration: {
   groqApiKey?: string
   groqModel?: string
   groqMaxEvidenceItems?: string
+  groqMaxBatches?: string
   groqDailyLimit?: string
 }): Plugin {
   const store = createMemoryHotelAnalysisJobStore()
@@ -681,6 +684,7 @@ function groqHotelAnalysisDev(configuration: {
   apiKey?: string
   model?: string
   maxEvidenceItems?: string
+  maxBatches?: string
   dailyAnalysisLimit?: string
 }): Plugin {
   return {
@@ -738,6 +742,7 @@ function groqHotelAnalysisDev(configuration: {
             await handleGroqHotelAnalysis(request, configuration.apiKey, {
               model: configuration.model,
               maxEvidenceItems: configuration.maxEvidenceItems,
+              maxBatches: configuration.maxBatches,
               dailyAnalysisLimit: configuration.dailyAnalysisLimit,
             }),
           )
@@ -937,6 +942,7 @@ export default {
         groqApiKey: env.GROQ_API_KEY,
         groqModel: env.GROQ_MODEL,
         groqMaxEvidenceItems: env.GROQ_MAX_EVIDENCE_ITEMS,
+        groqMaxBatches: env.GROQ_MAX_BATCHES,
         groqDailyLimit: env.GROQ_DAILY_ANALYSIS_LIMIT,
         youtubeCache: youtubeEvidenceCache,
         youtubeUsageStore,
@@ -960,6 +966,7 @@ export default {
       return handleGroqHotelAnalysis(request, env.GROQ_API_KEY, {
         model: env.GROQ_MODEL,
         maxEvidenceItems: env.GROQ_MAX_EVIDENCE_ITEMS,
+        maxBatches: env.GROQ_MAX_BATCHES,
         dailyAnalysisLimit: env.GROQ_DAILY_ANALYSIS_LIMIT,
         cache: groqAnalysisCache,
         usageStore: groqAnalysisUsageStore,

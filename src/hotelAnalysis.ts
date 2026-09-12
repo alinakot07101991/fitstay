@@ -28,13 +28,7 @@ export type HotelAnalysisResult = {
   preferences: Array<{
     preferenceId: string
     priority: HotelAnalysisPreference["priority"]
-    status:
-      | "strong_match"
-      | "match"
-      | "mixed"
-      | "mismatch"
-      | "strong_mismatch"
-      | "insufficient_evidence"
+    status: "strong_match" | "match" | "mixed" | "mismatch" | "strong_mismatch" | "insufficient_evidence"
     confidence: "high" | "medium" | "low"
     summary: string
     positiveEvidenceIds: string[]
@@ -46,6 +40,7 @@ export type HotelAnalysisResult = {
     totalEvidenceItems: number
     relevantEvidenceItems: number
     evidenceItemsAnalyzed: number
+    analysisBatches: number
     independentSourceCount: number
     sourcesAnalyzed: string[]
   }
@@ -75,7 +70,7 @@ export async function analyzeHotel(input: {
   }
   preferences: HotelAnalysisPreference[]
   evidence: HotelAnalysisEvidence[]
-  providerErrors?: Array<{ provider: string; code: string; message: string }>
+  providerErrors?: Array<{ provider: string code: string message: string }>
   signal?: AbortSignal
 }): Promise<HotelAnalysisResult> {
   const response = await fetch("/api/hotel-analysis", {
@@ -89,10 +84,11 @@ export async function analyzeHotel(input: {
     }),
     signal: input.signal,
   })
-  const payload = (await response.json().catch(() => null)) as
-    | HotelAnalysisResult
-    | { error?: { code?: string; message?: string } }
-    | null
+  const payload = (await response
+    .json()
+    .catch(() => null)) as HotelAnalysisResult | {
+    error?: { code?: string message?: string }
+  } | null
   if (!response.ok) {
     const error = payload && "error" in payload ? payload.error : null
     throw new HotelAnalysisRequestError(

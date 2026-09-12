@@ -6,16 +6,18 @@ import {
 export const GROQ_CHAT_COMPLETIONS_ENDPOINT =
   "https://api.groq.com/openai/v1/chat/completions"
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
-export const DEFAULT_GROQ_MAX_EVIDENCE_ITEMS = 30
+export const DEFAULT_GROQ_MAX_EVIDENCE_ITEMS = 40
+export const DEFAULT_GROQ_MAX_BATCHES = 14
 export const DEFAULT_GROQ_DAILY_ANALYSIS_LIMIT = 20
 export const GROQ_ANALYSIS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
-export const GROQ_ANALYSIS_VERSION = "fitstay-groq-analysis-v2"
+export const GROQ_ANALYSIS_VERSION = "fitstay-groq-analysis-v3"
 export const MATCH_SCORE_VERSION = "fitstay-score-2-2-1-v2"
 
-const MAX_CONFIGURED_EVIDENCE_ITEMS = 30
-const MAX_EVIDENCE_TEXT_CHARS = 550
-const FALLBACK_EVIDENCE_ITEMS = 15
-const FALLBACK_EVIDENCE_TEXT_CHARS = 400
+const MAX_CONFIGURED_EVIDENCE_ITEMS = 40
+const MAX_CONFIGURED_BATCHES = 14
+const MAX_EVIDENCE_TEXT_CHARS = 350
+const FALLBACK_EVIDENCE_ITEMS = 20
+const FALLBACK_EVIDENCE_TEXT_CHARS = 280
 const SOURCE_DIVERSITY_RESERVE = 3
 const MAX_SUMMARY_CHARS = 600
 const MAX_CACHE_ENTRIES = 200
@@ -485,6 +487,7 @@ export function validateGroqStructuredOutput(value, preferences, evidenceIds) {
       negativeEvidenceIds.length > MAX_REFERENCES_PER_STANCE ||
       references.some((id) => !allowedEvidenceIds.has(id)) ||
       positiveEvidenceIds.some((id) => negativeEvidenceIds.includes(id)) ||
+      (item.status !== "insufficient_evidence" && references.length === 0) ||
       (item.status === "insufficient_evidence" && references.length > 0) ||
       (item.status === "insufficient_evidence" && item.confidence !== "low")
     ) {
@@ -515,6 +518,106 @@ export function validateGroqStructuredOutput(value, preferences, evidenceIds) {
     )
   }
   return { preferences: validated, overallConfidence: value.overallConfidence }
+}
+
+function confidenceAtLeast(left, right) {
+  return CONFIDENCE_RANK[left] >= CONFIDENCE_RANK[right] ? left : right
+}
+
+export function mergeBatchClassifications(classifications, preferences) {
+  const merged = preferences.map((preference) => {
+    const candidates = classifications
+      .map((classification) =>
+        classification.preferences.find(
+          (item) => item.preferenceId === preference.id,
+        ),
+      )
+      .filter((item) => item && item.status !== "insufficient_evidence")
+    if (candidates.length === 0) {
+      return {
+        preferenceId: preference.id,
+        status: "insufficient_evidence",
+        confidence: "low",
+        summary:
+          "There is not enough relevant evidence to assess this preference",
+        positiveEvidenceIds: [],
+        negativeEvidenceIds: [],
+      }
+    }
+
+    const positiveEvidenceIds = [
+      ...new Set(candidates.flatMap((item) => item.positiveEvidenceIds)),
+    ].slice(0, MAX_REFERENCES_PER_STANCE)
+    const negativeEvidenceIds = [
+      ...new Set(candidates.flatMap((item) => item.negativeEvidenceIds)),
+    ].slice(0, MAX_REFERENCES_PER_STANCE)
+    const hasMixedBatch = candidates.some((item) => item.status === "mixed")
+    let status
+    if (
+      hasMixedBatch ||
+      (positiveEvidenceIds.length > 0 && negativeEvidenceIds.length > 0)
+    ) {
+      status = "mixed"
+    } else if (positiveEvidenceIds.length > 0) {
+      status =
+        positiveEvidenceIds.length >= 3 &&
+        candidates.every((item) => item.status === "strong_match")
+          ? "strong_match"
+          : "match"
+    } else if (negativeEvidenceIds.length > 0) {
+      status =
+        negativeEvidenceIds.length >= 3 &&
+        candidates.every((item) => item.status === "strong_mismatch")
+          ? "strong_mismatch"
+          : "mismatch"
+    } else {
+      status = "insufficient_evidence"
+    }
+
+    const bestSummary = [...candidates].sort((left, right) => {
+      const rightReferences =
+        right.positiveEvidenceIds.length + right.negativeEvidenceIds.length
+      const leftReferences =
+        left.positiveEvidenceIds.length + left.negativeEvidenceIds.length
+      if (rightReferences !== leftReferences)
+        return rightReferences - leftReferences
+      return (
+        CONFIDENCE_RANK[right.confidence] - CONFIDENCE_RANK[left.confidence]
+      )
+    })[0]?.summary
+    const confidence = candidates.reduce(
+      (current, item) => confidenceAtLeast(current, item.confidence),
+      "low",
+    )
+    return {
+      preferenceId: preference.id,
+      status,
+      confidence:
+        status === "mixed"
+          ? cappedConfidence(confidence, "medium")
+          : confidence,
+      summary:
+        status === "mixed" && !hasMixedBatch
+          ? "Available evidence contains both positive and negative signals"
+          : bestSummary ||
+            "There is not enough relevant evidence to assess this preference",
+      positiveEvidenceIds,
+      negativeEvidenceIds,
+    }
+  })
+  const assessed = merged.filter(
+    (item) => item.status !== "insufficient_evidence",
+  )
+  const overallConfidence = assessed.length
+    ? assessed.reduce(
+        (current, item) =>
+          CONFIDENCE_RANK[item.confidence] < CONFIDENCE_RANK[current]
+            ? item.confidence
+            : current,
+        "high",
+      )
+    : "low"
+  return { preferences: merged, overallConfidence }
 }
 
 export function calculateMatchScore(preferences, classifications) {
@@ -708,6 +811,7 @@ export function buildHotelAnalysisResult({
       duplicatesRemoved: prepared.stats.duplicatesRemoved,
       irrelevantItemsRemoved: prepared.stats.irrelevantRemoved,
       evidenceLimitApplied: prepared.stats.evidenceLimitApplied,
+      analysisBatches: prepared.stats.analysisBatches || 0,
     },
     referencedEvidence: [...referencedIds]
       .map((id) => selectedById.get(id))
@@ -849,7 +953,12 @@ async function groqCompletion({
       },
     },
   }
-  stats.inputCharacters = JSON.stringify(body).length
+  const inputCharacters = JSON.stringify(body).length
+  stats.inputCharacters += inputCharacters
+  stats.maxInputCharacters = Math.max(
+    stats.maxInputCharacters || 0,
+    inputCharacters,
+  )
   const maximumAttempts = allowRetry ? 2 : 1
   for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
     const controller = new AbortController()
@@ -948,6 +1057,14 @@ function compactEvidenceForRetry(selected, preferences) {
   return compact
 }
 
+function evidenceBatches(evidence, batchSize) {
+  const batches = []
+  for (let index = 0; index < evidence.length; index += batchSize) {
+    batches.push(evidence.slice(index, index + batchSize))
+  }
+  return batches
+}
+
 async function readCache(cache, key, now) {
   const entry = await cache.get(key)
   if (!entry) return null
@@ -973,6 +1090,11 @@ export function createGroqAnalysisService(options) {
     options.maxEvidenceItems,
     DEFAULT_GROQ_MAX_EVIDENCE_ITEMS,
     MAX_CONFIGURED_EVIDENCE_ITEMS,
+  )
+  const maxBatches = parseLimit(
+    options.maxBatches,
+    DEFAULT_GROQ_MAX_BATCHES,
+    MAX_CONFIGURED_BATCHES,
   )
   const dailyAnalysisLimit = parseLimit(
     options.dailyAnalysisLimit,
@@ -1054,7 +1176,7 @@ export function createGroqAnalysisService(options) {
     const prepared = prepareEvidence(
       input.evidence,
       input.preferences,
-      maxEvidenceItems,
+      maxEvidenceItems * maxBatches,
     )
     const evidenceHash = await sha256(
       stableStringify(
@@ -1088,6 +1210,8 @@ export function createGroqAnalysisService(options) {
           .sort((left, right) => left.id.localeCompare(right.id)),
         evidenceHash,
         model,
+        maxEvidenceItems,
+        maxBatches,
         analysisVersion: GROQ_ANALYSIS_VERSION,
         scoreVersion: MATCH_SCORE_VERSION,
       }),
@@ -1113,6 +1237,8 @@ export function createGroqAnalysisService(options) {
         groqRequests: 0,
         retries: 0,
         inputCharacters: 0,
+        maxInputCharacters: 0,
+        batchCount: 0,
         analysesToday: 0,
       }
       try {
@@ -1131,69 +1257,86 @@ export function createGroqAnalysisService(options) {
               429,
             )
           }
-          let evidenceIds = analysisPrepared.selected.map(
-            (item) => item.evidenceId,
+          const classifications = []
+          const processedEvidence = []
+          const batches = evidenceBatches(
+            analysisPrepared.selected,
+            maxEvidenceItems,
           )
-          let output
-          try {
-            output = await groqCompletion({
-              apiKey,
-              model,
-              messages: buildGroqMessages(
-                input.hotel,
+          for (const batch of batches) {
+            let processedBatch = batch
+            let evidenceIds = processedBatch.map((item) => item.evidenceId)
+            let output
+            try {
+              output = await groqCompletion({
+                apiKey,
+                model,
+                messages: buildGroqMessages(
+                  input.hotel,
+                  input.preferences,
+                  processedBatch,
+                  MAX_EVIDENCE_TEXT_CHARS,
+                  analysisPrepared.items,
+                ),
+                schema: strictOutputSchema(input.preferences, evidenceIds),
+                fetchImpl,
+                sleep,
+                stats,
+              })
+            } catch (error) {
+              if (
+                !(error instanceof GroqAnalysisError) ||
+                error.code !== "GROQ_INPUT_TOO_LARGE" ||
+                processedBatch.length <= FALLBACK_EVIDENCE_ITEMS
+              )
+                throw error
+              processedBatch = compactEvidenceForRetry(
+                processedBatch,
                 input.preferences,
-                analysisPrepared.selected,
-                MAX_EVIDENCE_TEXT_CHARS,
-                analysisPrepared.items,
-              ),
-              schema: strictOutputSchema(input.preferences, evidenceIds),
-              fetchImpl,
-              sleep,
-              stats,
-            })
-          } catch (error) {
-            if (
-              !(error instanceof GroqAnalysisError) ||
-              error.code !== "GROQ_INPUT_TOO_LARGE" ||
-              analysisPrepared.selected.length <= FALLBACK_EVIDENCE_ITEMS
-            )
-              throw error
-            const compact = compactEvidenceForRetry(
-              analysisPrepared.selected,
-              input.preferences,
-            )
-            analysisPrepared = {
-              ...prepared,
-              selected: compact,
-              stats: {
-                ...prepared.stats,
-                evidenceItemsAnalyzed: compact.length,
-                evidenceLimitApplied: true,
-              },
+              )
+              evidenceIds = processedBatch.map((item) => item.evidenceId)
+              stats.retries += 1
+              output = await groqCompletion({
+                apiKey,
+                model,
+                messages: buildGroqMessages(
+                  input.hotel,
+                  input.preferences,
+                  processedBatch,
+                  FALLBACK_EVIDENCE_TEXT_CHARS,
+                  analysisPrepared.items,
+                ),
+                schema: strictOutputSchema(input.preferences, evidenceIds),
+                fetchImpl,
+                sleep,
+                stats,
+                allowRetry: false,
+              })
             }
-            evidenceIds = compact.map((item) => item.evidenceId)
-            stats.retries += 1
-            output = await groqCompletion({
-              apiKey,
-              model,
-              messages: buildGroqMessages(
-                input.hotel,
+            classifications.push(
+              validateGroqStructuredOutput(
+                output,
                 input.preferences,
-                compact,
-                FALLBACK_EVIDENCE_TEXT_CHARS,
-                analysisPrepared.items,
+                evidenceIds,
               ),
-              schema: strictOutputSchema(input.preferences, evidenceIds),
-              fetchImpl,
-              sleep,
-              stats,
-              allowRetry: false,
-            })
+            )
+            processedEvidence.push(...processedBatch)
           }
-          classification = validateGroqStructuredOutput(
-            output,
+          stats.batchCount = classifications.length
+          analysisPrepared = {
+            ...prepared,
+            selected: processedEvidence,
+            stats: {
+              ...prepared.stats,
+              evidenceItemsAnalyzed: processedEvidence.length,
+              evidenceLimitApplied:
+                prepared.items.length > processedEvidence.length,
+              analysisBatches: classifications.length,
+            },
+          }
+          classification = mergeBatchClassifications(
+            classifications,
             input.preferences,
-            evidenceIds,
           )
         }
         const result = buildHotelAnalysisResult({
@@ -1212,6 +1355,8 @@ export function createGroqAnalysisService(options) {
           hotel: input.hotel.name,
           evidenceItems: analysisPrepared.selected.length,
           inputCharacters: stats.inputCharacters,
+          maxInputCharacters: stats.maxInputCharacters,
+          analysisBatches: stats.batchCount,
           cache: "miss",
           retries: stats.retries,
           groqRequests: stats.groqRequests,

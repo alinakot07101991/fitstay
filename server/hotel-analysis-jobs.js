@@ -420,6 +420,7 @@ export function createHotelAnalysisJobHandlers(configuration) {
         configuration.handleGroq(request, configuration.groqApiKey, {
           model: configuration.groqModel,
           maxEvidenceItems: configuration.groqMaxEvidenceItems,
+          maxBatches: configuration.groqMaxBatches,
           dailyAnalysisLimit: configuration.groqDailyLimit,
           cache: configuration.groqCache,
           usageStore: configuration.groqUsageStore,
