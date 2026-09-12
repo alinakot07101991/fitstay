@@ -315,6 +315,34 @@ test("reuses a completed cached analysis", async () => {
   assert.equal((await second.json()).cacheHit, true)
 })
 
+test("continues safely when the runtime cache is unavailable", async () => {
+  let calls = 0
+  const response = await handleGroqHotelAnalysis(
+    analysisRequest(),
+    "server-secret",
+    options(
+      async (...args) => {
+        calls += 1
+        return successfulGroq()(...args)
+      },
+      {
+        cache: {
+          async get() {
+            throw new Error("Cache API unavailable")
+          },
+          async set() {
+            throw new Error("Cache API unavailable")
+          },
+          async delete() {},
+        },
+      },
+    ),
+  )
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).status, "success")
+  assert.equal(calls, 1)
+})
+
 test("enforces the configurable daily analysis limit", async () => {
   const usageStore = createInMemoryProviderUsageStore("groq_daily_limit_test")
   const shared = { usageStore, dailyAnalysisLimit: "1" }

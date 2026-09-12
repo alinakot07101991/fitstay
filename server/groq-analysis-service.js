@@ -930,6 +930,29 @@ export function createGroqAnalysisService(options) {
     }
   }
 
+  async function readAnalysisCache(key, timestamp) {
+    try {
+      return await readCache(cache, key, timestamp)
+    } catch (error) {
+      logger.warn?.("[groq-analysis] cache unavailable", {
+        operation: "read",
+        failureType: error?.name || "Error",
+      })
+      return null
+    }
+  }
+
+  async function writeAnalysisCache(key, value, timestamp) {
+    try {
+      await writeCache(cache, key, value, timestamp)
+    } catch (error) {
+      logger.warn?.("[groq-analysis] cache unavailable", {
+        operation: "write",
+        failureType: error?.name || "Error",
+      })
+    }
+  }
+
   async function analyzeHotelPreferences(input) {
     const startedAt = now()
     const prepared = prepareEvidence(
@@ -974,7 +997,7 @@ export function createGroqAnalysisService(options) {
       }),
     )
     const timestamp = now()
-    const cached = await readCache(cache, cacheKey, timestamp)
+    const cached = await readAnalysisCache(cacheKey, timestamp)
     if (cached) {
       const analysesToday = await readUsageCount(utcDay(timestamp))
       logger.info?.("[groq-analysis] completed", {
@@ -1042,7 +1065,7 @@ export function createGroqAnalysisService(options) {
           evidenceHash,
           now: timestamp,
         })
-        await writeCache(cache, cacheKey, result, now())
+        await writeAnalysisCache(cacheKey, result, now())
         logger.info?.("[groq-analysis] completed", {
           model,
           hotel: input.hotel.name,
