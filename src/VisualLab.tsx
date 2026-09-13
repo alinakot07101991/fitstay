@@ -909,6 +909,17 @@ function airportCityValue(option: AirportCity) {
   return `${option.city} (${option.codes.split(",")[0]})`
 }
 
+function editableProfileSignature(profile: TravelerProfile) {
+  return JSON.stringify({
+    name: profile.name,
+    adults: profile.adults,
+    childAges: profile.childAges,
+    travelsWithPets: profile.travelsWithPets,
+    departureCity: profile.departureCity,
+    preferences: profile.preferences,
+  })
+}
+
 function Preferences({
   onEditingChange,
 }: {
@@ -932,6 +943,7 @@ function Preferences({
   const [customPreference, setCustomPreference] = useState("")
   const departurePickerRef = useRef<HTMLDivElement>(null)
   const preferencePickerRef = useRef<HTMLDivElement>(null)
+  const editingBaselineRef = useRef("")
 
   useEffect(() => {
     let active = true
@@ -978,6 +990,7 @@ function Preferences({
 
   const beginEditing = () => {
     if (!baseProfile) return
+    editingBaselineRef.current = editableProfileSignature(baseProfile)
     setDraft({
       ...baseProfile,
       childAges: [...baseProfile.childAges],
@@ -1008,6 +1021,7 @@ function Preferences({
       setProfile(next)
       setEditing(false)
       setDraft(null)
+      editingBaselineRef.current = ""
       setDepartureOptionsOpen(false)
       setPreferenceOptionsOpen(false)
       onEditingChange(false)
@@ -1021,21 +1035,7 @@ function Preferences({
 
   const displayed = editing ? draft : baseProfile
   const hasUnsavedChanges = Boolean(
-    draft &&
-      baseProfile &&
-      (draft.adults !== baseProfile.adults ||
-        draft.travelsWithPets !== baseProfile.travelsWithPets ||
-        draft.departureCity.trim() !== baseProfile.departureCity.trim() ||
-        draft.childAges.length !== baseProfile.childAges.length ||
-        draft.childAges.some(
-          (age, index) => age !== baseProfile.childAges[index],
-        ) ||
-        draft.preferences.length !== baseProfile.preferences.length ||
-        draft.preferences.some(
-          (preference, index) =>
-            preference.label !== baseProfile.preferences[index]?.label ||
-            preference.priority !== baseProfile.preferences[index]?.priority,
-        )),
+    draft && editableProfileSignature(draft) !== editingBaselineRef.current,
   )
   const normalizedDepartureQuery = draft?.departureCity
     .trim()
@@ -1498,6 +1498,7 @@ function Preferences({
               onClick={() => {
                 setEditing(false)
                 setDraft(null)
+                editingBaselineRef.current = ""
                 setSaveError("")
                 setDepartureOptionsOpen(false)
                 setPreferenceOptionsOpen(false)
