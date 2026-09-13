@@ -45,6 +45,29 @@ function publicJob(row) {
   }
 }
 
+function resultNeedsMoreEvidence(result) {
+  if (!result || !Array.isArray(result.preferences)) return true
+  const weights = { critical: 2, important: 2, nice_to_have: 1 }
+  const evaluated = result.preferences.filter((preference) => {
+    if (["mixed", "insufficient_evidence"].includes(preference.status))
+      return false
+    if (preference.confidence === "low") return false
+    return (
+      preference.priority !== "critical" || preference.confidence === "high"
+    )
+  })
+  const availableWeight = result.preferences.reduce(
+    (total, preference) => total + (weights[preference.priority] || 0),
+    0,
+  )
+  const evaluatedWeight = evaluated.reduce(
+    (total, preference) => total + (weights[preference.priority] || 0),
+    0,
+  )
+  const coverage = availableWeight ? evaluatedWeight / availableWeight : 0
+  return result.matchScore === null || evaluated.length < 3 || coverage < 0.5
+}
+
 function validateInput(input) {
   const hotel = input?.hotel
   const preferences = input?.preferences
@@ -114,14 +137,16 @@ export function createMemoryHotelAnalysisJobStore() {
 export function createD1HotelAnalysisJobStore(database) {
   let ready
   const ensureReady = () => {
-    ready ||= database
-      .prepare(
-        `CREATE TABLE IF NOT EXISTS hotel_analysis_jobs (
+    ready ||= (async () => {
+      await database
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS hotel_analysis_jobs (
           id TEXT PRIMARY KEY,
           status TEXT NOT NULL,
           stage TEXT NOT NULL,
           request_json TEXT NOT NULL,
           result_json TEXT,
+          checkpoint_json TEXT,
           error_code TEXT,
           error_message TEXT,
           attempt_count INTEGER NOT NULL DEFAULT 0,
@@ -129,8 +154,22 @@ export function createD1HotelAnalysisJobStore(database) {
           updated_at TEXT NOT NULL,
           completed_at TEXT
         )`,
+        )
+        .run()
+      const columns = await database
+        .prepare("PRAGMA table_info(hotel_analysis_jobs)")
+        .all()
+      if (
+        !(columns.results || []).some(
+          (column) => column.name === "checkpoint_json",
+        )
       )
-      .run()
+        await database
+          .prepare(
+            "ALTER TABLE hotel_analysis_jobs ADD COLUMN checkpoint_json TEXT",
+          )
+          .run()
+    })()
     return ready
   }
   return {
@@ -139,9 +178,10 @@ export function createD1HotelAnalysisJobStore(database) {
       await database
         .prepare(
           `INSERT INTO hotel_analysis_jobs
-            (id, status, stage, request_json, result_json, error_code, error_message,
-             attempt_count, created_at, updated_at, completed_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (id, status, stage, request_json, result_json, checkpoint_json,
+             error_code, error_message, attempt_count, created_at, updated_at,
+             completed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           row.id,
@@ -149,6 +189,7 @@ export function createD1HotelAnalysisJobStore(database) {
           row.stage,
           row.request_json,
           row.result_json,
+          row.checkpoint_json,
           row.error_code,
           row.error_message,
           row.attempt_count,
@@ -171,6 +212,7 @@ export function createD1HotelAnalysisJobStore(database) {
         "status",
         "stage",
         "result_json",
+        "checkpoint_json",
         "error_code",
         "error_message",
         "attempt_count",
@@ -261,83 +303,162 @@ async function processJob(jobId, options) {
   if (!row || row.status !== "queued") return
   const input = safeParse(row.request_json)
   if (!input) return
+  const savedCheckpoint = safeParse(row.checkpoint_json, {}) || {}
+  const evidence = Array.isArray(savedCheckpoint.evidence)
+    ? [...savedCheckpoint.evidence]
+    : []
+  const providerErrors = Array.isArray(savedCheckpoint.providerErrors)
+    ? [...savedCheckpoint.providerErrors]
+    : []
+  const completedProviders = new Set(
+    Array.isArray(savedCheckpoint.completedProviders)
+      ? savedCheckpoint.completedProviders
+      : [],
+  )
+  const evidenceIds = new Set(evidence.map((item) => item.evidenceId))
+  const addEvidence = (items) => {
+    for (const item of items || []) {
+      if (!item?.evidenceId || evidenceIds.has(item.evidenceId)) continue
+      evidenceIds.add(item.evidenceId)
+      evidence.push(item)
+    }
+  }
+  const clearProviderError = (provider) => {
+    for (let index = providerErrors.length - 1; index >= 0; index -= 1)
+      if (providerErrors[index].provider === provider)
+        providerErrors.splice(index, 1)
+  }
+  const setProviderError = (provider, error) => {
+    clearProviderError(provider)
+    providerErrors.push(providerError(provider, error))
+  }
+  const saveCheckpoint = () =>
+    store.update(jobId, {
+      checkpoint_json: JSON.stringify({
+        evidence,
+        providerErrors,
+        completedProviders: [...completedProviders],
+      }),
+      updated_at: new Date().toISOString(),
+    })
+
+  if (evidence.length === 0)
+    addEvidence([
+      {
+        evidenceId: `google-place:${input.hotel.placeId || input.hotel.name}`,
+        source: "google_places",
+        type: "hotel_information",
+        sourceId: input.hotel.placeId,
+        title: input.hotel.name,
+        text: `${input.hotel.name}, ${input.hotel.city}, ${input.hotel.country}`,
+      },
+    ])
+
+  const resumedStage =
+    completedProviders.has("google_hotels") &&
+    completedProviders.has("tripadvisor") &&
+    completedProviders.has("youtube") &&
+    completedProviders.has("web")
+      ? "score_calculation"
+      : completedProviders.has("google_hotels") &&
+          completedProviders.has("tripadvisor")
+        ? "preference_matching"
+        : "guest_feedback"
   const now = new Date().toISOString()
   await store.update(jobId, {
     status: "processing",
-    stage: JOB_STAGES[0],
+    stage: resumedStage,
     attempt_count: Number(row.attempt_count || 0) + 1,
     updated_at: now,
     error_code: null,
     error_message: null,
   })
 
-  const evidence = [
-    {
-      evidenceId: `google-place:${input.hotel.placeId || input.hotel.name}`,
-      source: "google_places",
-      type: "hotel_information",
-      sourceId: input.hotel.placeId,
-      title: input.hotel.name,
-      text: `${input.hotel.name}, ${input.hotel.city}, ${input.hotel.country}`,
-    },
-  ]
-  const providerErrors = []
-
   try {
-    await store.update(jobId, {
-      stage: "guest_feedback",
-      updated_at: new Date().toISOString(),
-    })
-    const reviewResults = await Promise.allSettled([
-      handlers.googleReviews(input),
-      handlers.tripadvisorReviews(input),
-    ])
-    if (reviewResults[0].status === "fulfilled")
-      evidence.push(...normalizeGoogleReviews(reviewResults[0].value))
-    else
-      providerErrors.push(
-        providerError("google_hotels", reviewResults[0].reason),
-      )
-    if (reviewResults[1].status === "fulfilled")
-      evidence.push(...normalizeTripadvisorReviews(reviewResults[1].value))
-    else
-      providerErrors.push(providerError("tripadvisor", reviewResults[1].reason))
+    const reviewProviders = [
+      {
+        provider: "google_hotels",
+        run: () => handlers.googleReviews(input),
+        normalize: normalizeGoogleReviews,
+      },
+      {
+        provider: "tripadvisor",
+        run: () => handlers.tripadvisorReviews(input),
+        normalize: normalizeTripadvisorReviews,
+      },
+    ].filter(({ provider }) => !completedProviders.has(provider))
 
-    await store.update(jobId, {
-      stage: "preference_matching",
-      updated_at: new Date().toISOString(),
-    })
-    const discoveryResults = await Promise.allSettled([
-      handlers.youtube(input),
-      handlers.tavily(input),
-    ])
-    const youtube = discoveryResults[0]
-    if (youtube.status === "fulfilled") {
-      evidence.push(...(youtube.value?.evidence || []))
-      if (youtube.value?.providerError)
-        providerErrors.push({
-          provider: "youtube",
-          ...youtube.value.providerError,
-        })
-    } else providerErrors.push(providerError("youtube", youtube.reason))
-
-    const tavily = discoveryResults[1]
-    if (tavily.status === "fulfilled") {
-      evidence.push(
-        ...(tavily.value?.evidence || []).map((item, index) => ({
-          evidenceId: `web:${item.domain}:${index}`,
-          source: item.source,
-          provider: item.provider,
-          type: "web",
-          title: item.title,
-          text: item.text,
-          sourceUrl: item.sourceUrl,
-          publishedAt: item.retrievedAt,
-          domain: item.domain,
-          metadata: { relevanceScore: item.relevanceScore },
-        })),
+    if (reviewProviders.length > 0) {
+      await store.update(jobId, {
+        stage: "guest_feedback",
+        updated_at: new Date().toISOString(),
+      })
+      const reviewResults = await Promise.allSettled(
+        reviewProviders.map(({ run }) => run()),
       )
-    } else providerErrors.push(providerError("web", tavily.reason))
+      reviewResults.forEach((result, index) => {
+        const definition = reviewProviders[index]
+        if (result.status === "fulfilled") {
+          addEvidence(definition.normalize(result.value))
+          clearProviderError(definition.provider)
+          completedProviders.add(definition.provider)
+        } else setProviderError(definition.provider, result.reason)
+      })
+      await saveCheckpoint()
+    }
+
+    const discoveryProviders = [
+      {
+        provider: "youtube",
+        run: () => handlers.youtube(input),
+      },
+      {
+        provider: "web",
+        run: () => handlers.tavily(input),
+      },
+    ].filter(({ provider }) => !completedProviders.has(provider))
+
+    if (discoveryProviders.length > 0) {
+      await store.update(jobId, {
+        stage: "preference_matching",
+        updated_at: new Date().toISOString(),
+      })
+      const discoveryResults = await Promise.allSettled(
+        discoveryProviders.map(({ run }) => run()),
+      )
+      discoveryResults.forEach((result, index) => {
+        const { provider } = discoveryProviders[index]
+        if (result.status === "rejected") {
+          setProviderError(provider, result.reason)
+          return
+        }
+        if (provider === "youtube") {
+          addEvidence(result.value?.evidence || [])
+          if (result.value?.providerError) {
+            setProviderError("youtube", result.value.providerError)
+            return
+          }
+        } else {
+          addEvidence(
+            (result.value?.evidence || []).map((item, itemIndex) => ({
+              evidenceId: `web:${item.domain}:${itemIndex}`,
+              source: item.source,
+              provider: item.provider,
+              type: "web",
+              title: item.title,
+              text: item.text,
+              sourceUrl: item.sourceUrl,
+              publishedAt: item.retrievedAt,
+              domain: item.domain,
+              metadata: { relevanceScore: item.relevanceScore },
+            })),
+          )
+        }
+        clearProviderError(provider)
+        completedProviders.add(provider)
+      })
+      await saveCheckpoint()
+    }
 
     await store.update(jobId, {
       stage: "score_calculation",
@@ -355,6 +476,7 @@ async function processJob(jobId, options) {
       completed_at: new Date().toISOString(),
     })
   } catch (error) {
+    await saveCheckpoint()
     await store.update(jobId, {
       status: "failed",
       error_code: error?.code || "HOTEL_ANALYSIS_FAILED",
@@ -462,6 +584,7 @@ export async function handleHotelAnalysisJobs(request, options) {
       stage: JOB_STAGES[0],
       request_json: JSON.stringify(input),
       result_json: null,
+      checkpoint_json: null,
       error_code: null,
       error_message: null,
       attempt_count: 0,
@@ -515,10 +638,13 @@ export async function handleHotelAnalysisJobs(request, options) {
         },
         404,
       )
-    if (job.status !== "failed") return json(publicJob(job), 200)
+    const completedResult = safeParse(job.result_json)
+    const canRetryCompletedResult =
+      job.status === "completed" && resultNeedsMoreEvidence(completedResult)
+    if (job.status !== "failed" && !canRetryCompletedResult)
+      return json(publicJob(job), 200)
     await options.store.update(jobId, {
       status: "queued",
-      stage: JOB_STAGES[0],
       result_json: null,
       error_code: null,
       error_message: null,

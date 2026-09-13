@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Check, ChevronDown, Sparkles } from "lucide-react"
-import aiBlob from "@/imports/blob-animation.png"
+import aiBlob from "@/imports/blob-animation__1_.gif"
 import type { HotelAnalysisResult } from "./hotelAnalysis"
 import type { HotelAnalysisProgress } from "./runHotelAnalysis"
 
@@ -13,13 +13,6 @@ const progressStages: Array<{
   { id: "preference_matching", label: "Preference matching" },
   { id: "score_calculation", label: "Score calculation" },
   { id: "preparing_result", label: "Preparing your result" },
-]
-
-const progressMessages = [
-  "I’m checking this hotel against your trip preferences",
-  "Looking at the hotel information and recent guest feedback…",
-  "Analyzing the available data for your personalized match",
-  "Comparing the results with your preferences",
 ]
 
 function sentence(value: string) {
@@ -42,29 +35,17 @@ export function HotelAnalysisProcessing({
     0,
     progressStages.findIndex((stage) => stage.id === activeStage),
   )
-  const progress = error ? activeIndex * 20 : (activeIndex + 0.45) * 20
-
   return (
     <div className="motion-swap mt-7" aria-live="polite">
       <p className="text-[20px] font-semibold text-[#2f2b28]">{hotelName}</p>
       <p className="mt-1 text-[12px] text-[#8b847c]">AI hotel fit analysis</p>
 
-      <div className="mt-7 flex items-center gap-4">
-        <img
-          src={aiBlob}
-          alt=""
-          className="animate-thinking-blob size-12 shrink-0 object-contain"
-        />
+      <div className="mt-6 flex items-center gap-3">
+        <img src={aiBlob} alt="" className="size-12 shrink-0 object-contain" />
         <div className="min-w-0">
-          <div className="space-y-2">
-            {progressMessages
-              .slice(0, Math.min(activeIndex + 1, progressMessages.length))
-              .map((message) => (
-                <p key={message} className="motion-swap text-[14px]">
-                  {message}
-                </p>
-              ))}
-          </div>
+          <p className="text-[14px]">
+            {error ? "Analysis paused" : "Analysis in progress"}
+          </p>
           {!error && (
             <span
               className="analysis-dots mt-2 inline-flex gap-1"
@@ -76,13 +57,6 @@ export function HotelAnalysisProcessing({
             </span>
           )}
         </div>
-      </div>
-
-      <div className="mt-6 h-1 overflow-hidden rounded-full bg-[#ede9e3]">
-        <div
-          className="analysis-progress-line h-full rounded-full bg-coral"
-          style={{ width: `${Math.min(progress, 100)}%` }}
-        />
       </div>
 
       {error ? (

@@ -36,8 +36,27 @@ function successfulHandlers() {
       hotelId: "place-1",
       matchScore: 75,
       hasCriticalConflict: false,
-      overallConfidence: "low",
-      preferences: [],
+      overallConfidence: "high",
+      preferences: [
+        {
+          preferenceId: "quiet",
+          priority: "critical",
+          status: "match",
+          confidence: "high",
+        },
+        {
+          preferenceId: "wifi",
+          priority: "important",
+          status: "match",
+          confidence: "medium",
+        },
+        {
+          preferenceId: "breakfast",
+          priority: "nice_to_have",
+          status: "match",
+          confidence: "medium",
+        },
+      ],
       evidenceStats: {
         totalEvidenceItems: 1,
         relevantEvidenceItems: 1,
@@ -81,8 +100,28 @@ test("stores a controlled failure and restarts the same job", async () => {
   const store = createMemoryHotelAnalysisJobStore()
   const tasks = []
   let shouldFail = true
+  const calls = {
+    googleReviews: 0,
+    tripadvisorReviews: 0,
+    youtube: 0,
+    tavily: 0,
+    groq: 0,
+  }
   const handlers = successfulHandlers()
+  for (const provider of [
+    "googleReviews",
+    "tripadvisorReviews",
+    "youtube",
+    "tavily",
+  ]) {
+    const handler = handlers[provider]
+    handlers[provider] = async (...args) => {
+      calls[provider] += 1
+      return handler(...args)
+    }
+  }
   handlers.groq = async () => {
+    calls.groq += 1
     if (shouldFail) {
       const error = new Error("Model unavailable")
       error.code = "GROQ_MODEL_UNAVAILABLE"
@@ -111,6 +150,95 @@ test("stores a controlled failure and restarts the same job", async () => {
   const completed = await store.get(created.jobId)
   assert.equal(completed.status, "completed")
   assert.equal(completed.attempt_count, 2)
+  assert.deepEqual(calls, {
+    googleReviews: 1,
+    tripadvisorReviews: 1,
+    youtube: 1,
+    tavily: 1,
+    groq: 2,
+  })
+})
+
+test("retries an insufficient result from its saved evidence checkpoint", async () => {
+  const store = createMemoryHotelAnalysisJobStore()
+  const tasks = []
+  const calls = {
+    googleReviews: 0,
+    tripadvisorReviews: 0,
+    youtube: 0,
+    tavily: 0,
+    groq: 0,
+  }
+  const handlers = successfulHandlers()
+  for (const provider of [
+    "googleReviews",
+    "tripadvisorReviews",
+    "youtube",
+    "tavily",
+  ]) {
+    const handler = handlers[provider]
+    handlers[provider] = async (...args) => {
+      calls[provider] += 1
+      return handler(...args)
+    }
+  }
+  handlers.groq = async () => {
+    calls.groq += 1
+    return {
+      status: "success",
+      hotelId: "place-1",
+      matchScore: null,
+      hasCriticalConflict: false,
+      overallConfidence: "low",
+      preferences: [
+        {
+          preferenceId: "quiet",
+          priority: "critical",
+          status: "insufficient_evidence",
+          confidence: "low",
+          summary: "Not enough evidence",
+          positiveEvidenceIds: [],
+          negativeEvidenceIds: [],
+          evidenceCount: 0,
+          independentSourceCount: 0,
+        },
+      ],
+      evidenceStats: {
+        totalEvidenceItems: 1,
+        relevantEvidenceItems: 0,
+        evidenceItemsAnalyzed: 1,
+        independentSourceCount: 1,
+        sourcesAnalyzed: ["google_places"],
+      },
+      cacheHit: false,
+    }
+  }
+
+  const createResponse = await handleHotelAnalysisJobs(
+    request("/api/hotel-analysis/jobs", "POST", input),
+    { store, handlers, waitUntil: (promise) => tasks.push(promise) },
+  )
+  const created = await createResponse.json()
+  await tasks.shift()
+  assert.equal((await store.get(created.jobId)).status, "completed")
+
+  const retryResponse = await handleHotelAnalysisJobs(
+    request(`/api/hotel-analysis/jobs/${created.jobId}/retry`, "POST"),
+    { store, handlers, waitUntil: (promise) => tasks.push(promise) },
+  )
+  assert.equal(retryResponse.status, 202)
+  await tasks.shift()
+
+  const completed = await store.get(created.jobId)
+  assert.equal(completed.status, "completed")
+  assert.equal(completed.attempt_count, 2)
+  assert.deepEqual(calls, {
+    googleReviews: 1,
+    tripadvisorReviews: 1,
+    youtube: 1,
+    tavily: 1,
+    groq: 2,
+  })
 })
 
 test("does not duplicate a retry for a job that is already complete", async () => {

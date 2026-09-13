@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import aiBlob from "@/imports/blob-animation.png"
+import animatedAiBlob from "@/imports/blob-animation__1_.gif"
 import hotelExteriorImage from "@/imports/ChatGPT_Image_Aug_24__2026__03_55_28_PM.png"
 import rhodesImage from "@/imports/destination-rhodes.png"
 import baliImage from "@/imports/destination-bali.png"
@@ -1710,13 +1711,15 @@ function Home({
   const retryAnalysis = async () => {
     if (analysisInFlight.current) return
     const record = hotelChecks.find((item) => item.id === currentCheckId)
-    if (!record?.analysisJobId || record.analysisStatus !== "failed") {
+    if (!record?.analysisJobId) {
       await startHotelAnalysis()
       return
     }
     analysisInFlight.current = true
     setAnalysisError("")
-    setAnalysisStage("hotel_information")
+    setAnalysisResult(null)
+    setAnalysisStage(record.analysisStage || "hotel_information")
+    setChatStage("analysis")
     try {
       const job = await retryHotelAnalysisJob(record.analysisJobId)
       applyAnalysisJob(job, record.id)
@@ -1841,9 +1844,9 @@ function Home({
                     Checking names, destinations, and hotel links…
                   </p>
                   <img
-                    src={aiBlob}
+                    src={animatedAiBlob}
                     alt=""
-                    className="animate-thinking-blob mt-4 size-11 object-contain"
+                    className="mt-4 size-11 object-contain"
                   />
                 </div>
               )}
