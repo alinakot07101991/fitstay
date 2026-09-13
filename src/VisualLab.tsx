@@ -1061,8 +1061,8 @@ function Preferences({
     : ""
 
   return (
-    <aside className="min-h-[calc(100vh-70px)] overflow-y-auto border-l border-[#e7e3dd] bg-white/80 p-6 backdrop-blur-md">
-      <div className="flex min-h-10 items-center justify-between gap-3">
+    <aside className="min-h-[calc(100vh-70px)] overflow-y-auto border-l border-[#e7e3dd] bg-white/80 px-6 pb-6 backdrop-blur-md">
+      <div className="flex h-16 items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold">Your preferences</h2>
         {!editing && baseProfile && (
           <button
