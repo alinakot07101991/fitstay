@@ -25,6 +25,7 @@ import {
   Settings,
   Square,
   Sparkles,
+  Trash2,
   ArrowUp,
   Users,
   X,
@@ -67,9 +68,11 @@ import {
 } from "./googlePlaces"
 import {
   createHotelCheckRecord,
+  deleteHotelCheck as deleteSavedHotelCheck,
   loadHotelChecks,
   markLatestDraftChecked,
   readLocalHotelChecks,
+  removeLocalHotelCheck,
   saveHotelCheck,
   updateHotelCheckRecord,
   upsertLocalHotelCheck,
@@ -106,6 +109,7 @@ const DraftContext = createContext<{
   activeCheckId: string | null
   newHotelCheckActive: boolean
   startNewHotelCheck: () => void
+  deleteHotelCheck: (id: string) => void
   createDraft: (hotel: HotelOption) => HotelCheckRecord
   resolveDraft: (hotelName?: string) => HotelCheckRecord | null
   openHotelCheck: (id: string) => void
@@ -120,6 +124,7 @@ const DraftContext = createContext<{
   activeCheckId: null,
   newHotelCheckActive: false,
   startNewHotelCheck: () => {},
+  deleteHotelCheck: () => {},
   createDraft: () => createHotelCheckRecord(defaultDraftHotel),
   resolveDraft: () => null,
   openHotelCheck: () => {},
@@ -310,6 +315,7 @@ const icons: Record<string, LucideIcon> = {
   dog: Dog,
   cup: Coffee,
   plane: Plane,
+  trash: Trash2,
 }
 
 function Icon({ name, size = 18 }: { name: string size?: number }) {
@@ -421,6 +427,62 @@ function EmptyHistory() {
       <p className="mt-2 max-w-[220px] text-[12px] leading-relaxed text-[#817a73]">
         Start a check or identify a hotel to keep it in your search history
       </p>
+    </div>
+  )
+}
+
+function DeleteChatModal({
+  hotelName,
+  onCancel,
+  onConfirm,
+}: {
+  hotelName: string
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel()
+    }
+    window.addEventListener("keydown", closeOnEscape)
+    return () => window.removeEventListener("keydown", closeOnEscape)
+  }, [onCancel])
+
+  return (
+    <div
+      className="motion-backdrop fixed inset-0 z-[70] grid place-items-center bg-[#211d1a]/20 p-4 backdrop-blur-[2px]"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCancel()
+      }}
+    >
+      <section
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-chat-title"
+        aria-describedby="delete-chat-description"
+        className="motion-dialog w-full max-w-[430px] rounded-[24px] bg-white p-6 shadow-[0_24px_70px_rgba(35,30,27,.22)] ring-1 ring-black/5"
+      >
+        <span className="grid size-11 place-items-center rounded-full bg-[#fff0eb] text-[#d95448]">
+          <Icon name="trash" />
+        </span>
+        <h2 id="delete-chat-title" className="mt-5 text-[18px] font-semibold">
+          Delete this chat?
+        </h2>
+        <p
+          id="delete-chat-description"
+          className="mt-3 text-[14px] leading-relaxed text-[#77716a]"
+        >
+          {hotelName === "New hotel check"
+            ? "This new hotel check will be removed from your history"
+            : `${hotelName} and its analysis will be permanently removed from your history`}
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button primary onClick={onConfirm}>
+            Delete chat
+          </Button>
+        </div>
+      </section>
     </div>
   )
 }
@@ -568,7 +630,9 @@ function History({
   state: HistoryState
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
+  const [chatToDelete, setChatToDelete] = useState<HistoryEntry | null>(null)
   const {
+    deleteHotelCheck,
     draftHotel,
     hotelChecks,
     newHotelCheckActive,
@@ -686,43 +750,61 @@ function History({
           <EmptyHistory />
         ) : (
           <div className="space-y-1 px-4 pb-6 pt-5">
-            {visibleHistory.map(
-              ([place, hotel, date, image, status, recordId]) => (
-                <button
+            {visibleHistory.map((entry) => {
+              const [place, hotel, date, image, status, recordId] = entry
+              return (
+                <div
                   key={recordId || `${place}-${status || "checked"}`}
-                  onClick={() =>
-                    recordId === NEW_HOTEL_CHECK_ID
-                      ? startNewHotelCheck()
-                      : recordId
-                        ? openHotelCheck(recordId)
-                        : go(status === "Draft" ? "identify" : "result")
-                  }
-                  className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-[#f3f0eb] focus:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
+                  className="group relative rounded-2xl hover:bg-[#f3f0eb] focus-within:bg-[#f3f0eb]"
                 >
-                  <img
-                    src={image}
-                    alt=""
-                    className="size-12 shrink-0 rounded-full object-cover"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <b className="min-w-0 truncate text-[12px]">{place}</b>
-                      {status && (
-                        <span className="shrink-0 rounded-full bg-[#fff0eb] px-2 py-1 text-[12px] font-semibold text-[#d95448]">
-                          {status}
-                        </span>
-                      )}
+                  <button
+                    onClick={() =>
+                      recordId === NEW_HOTEL_CHECK_ID
+                        ? startNewHotelCheck()
+                        : recordId
+                          ? openHotelCheck(recordId)
+                          : go(status === "Draft" ? "identify" : "result")
+                    }
+                    className="flex w-full items-center gap-3 rounded-2xl p-3 pr-12 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
+                  >
+                    <img
+                      src={image}
+                      alt=""
+                      className="size-12 shrink-0 rounded-full object-cover"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <b className="min-w-0 truncate text-[12px]">{place}</b>
+                        {status && (
+                          <span className="shrink-0 rounded-full bg-[#fff0eb] px-2 py-1 text-[12px] font-semibold text-[#d95448]">
+                            {status}
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-1 block truncate text-[12px] text-[#77716a]">
+                        {hotel}
+                      </span>
+                      <span className="mt-1 block text-[12px] text-[#a09991]">
+                        {date}
+                      </span>
                     </span>
-                    <span className="mt-1 block truncate text-[12px] text-[#77716a]">
-                      {hotel}
-                    </span>
-                    <span className="mt-1 block text-[12px] text-[#a09991]">
-                      {date}
-                    </span>
-                  </span>
-                </button>
-              ),
-            )}
+                  </button>
+                  {recordId && (
+                    <button
+                      type="button"
+                      aria-label={`Delete ${
+                        place === "New hotel check" ? "new hotel check" : hotel
+                      }`}
+                      title="Delete chat"
+                      onClick={() => setChatToDelete(entry)}
+                      className="absolute right-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white text-[#77716a] opacity-0 shadow-[0_2px_8px_rgba(35,30,27,.08)] transition-[opacity,color,transform] hover:text-[#d95448] focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50 group-hover:opacity-100 group-focus-within:opacity-100"
+                    >
+                      <Icon name="trash" size={15} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </aside>
@@ -738,6 +820,20 @@ function History({
           items={visibleHistory}
           go={go}
           onClose={() => setSearchOpen(false)}
+        />
+      )}
+      {chatToDelete && (
+        <DeleteChatModal
+          hotelName={
+            chatToDelete[5] === NEW_HOTEL_CHECK_ID
+              ? "New hotel check"
+              : chatToDelete[1]
+          }
+          onCancel={() => setChatToDelete(null)}
+          onConfirm={() => {
+            if (chatToDelete[5]) deleteHotelCheck(chatToDelete[5])
+            setChatToDelete(null)
+          }}
         />
       )}
     </>
@@ -3336,6 +3432,40 @@ export default function VisualLab() {
     setHomeInstance((current) => current + 1)
   }
 
+  const deleteHotelCheck = (id: string) => {
+    if (id === NEW_HOTEL_CHECK_ID) {
+      setNewHotelCheckActive(false)
+      setActiveCheckId(null)
+      setScreen("home")
+      setHomeInstance((current) => current + 1)
+      return
+    }
+
+    const remainingRecords = removeLocalHotelCheck(id)
+    setHotelChecks(remainingRecords)
+    if (activeCheckId === id) {
+      setActiveCheckId(null)
+      setScreen("home")
+      setHomeInstance((current) => current + 1)
+    }
+    const remainingDraft = remainingRecords.find(
+      (record) => record.status === "draft",
+    )
+    setDraftHotel(
+      remainingDraft
+        ? {
+            place: remainingDraft.place,
+            hotel: remainingDraft.hotel,
+            placeId: remainingDraft.placeId,
+            city: remainingDraft.city,
+            country: remainingDraft.country,
+            image: destinationImages[remainingDraft.hotel],
+          }
+        : null,
+    )
+    void deleteSavedHotelCheck(id)
+  }
+
   const persistedDraft = hotelChecks.find((record) => record.status === "draft")
   const currentDraftHotel =
     draftHotel ||
@@ -3359,6 +3489,7 @@ export default function VisualLab() {
         activeCheckId,
         newHotelCheckActive,
         startNewHotelCheck,
+        deleteHotelCheck,
         createDraft,
         resolveDraft,
         openHotelCheck,

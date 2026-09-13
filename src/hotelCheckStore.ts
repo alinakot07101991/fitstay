@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, setDoc } from "firebase/firestore"
+import { collection, deleteDoc, doc, getDocs, setDoc } from "firebase/firestore"
 import { auth, database } from "./firebase"
 import type { HotelAnalysisResult } from "./hotelAnalysis"
 import type { HotelAnalysisProgress } from "./runHotelAnalysis"
@@ -81,6 +81,12 @@ function writeLocalHotelChecks(records: HotelCheckRecord[]) {
   )
 }
 
+export function removeLocalHotelCheck(id: string) {
+  const records = readLocalHotelChecks().filter((record) => record.id !== id)
+  writeLocalHotelChecks(records)
+  return records
+}
+
 export function createHotelCheckRecord(
   hotel: Pick<HotelCheckRecord, "place" | "hotel" | "placeId" | "city" | "country">,
 ): HotelCheckRecord {
@@ -124,6 +130,20 @@ export async function saveHotelCheck(record: HotelCheckRecord) {
   } catch (error) {
     console.warn(
       "Firestore is unavailable; the hotel check remains saved locally.",
+      error,
+    )
+  }
+}
+
+export async function deleteHotelCheck(id: string) {
+  removeLocalHotelCheck(id)
+  const userRecords = recordsCollection()
+  if (!userRecords) return
+  try {
+    await deleteDoc(doc(userRecords, id))
+  } catch (error) {
+    console.warn(
+      "Firestore is unavailable; the hotel check was removed locally.",
       error,
     )
   }
