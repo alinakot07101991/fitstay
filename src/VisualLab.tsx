@@ -31,6 +31,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import aiBlob from "@/imports/blob-animation.png"
+import hotelExteriorImage from "@/imports/ChatGPT_Image_Aug_24__2026__03_55_28_PM.png"
 import rhodesImage from "@/imports/destination-rhodes.png"
 import baliImage from "@/imports/destination-bali.png"
 import barcelonaImage from "@/imports/destination-barcelona.png"
@@ -41,7 +42,12 @@ import onboardingPreferencesImage from "@/imports/onboarding-preferences-v1.png"
 import onboardingPrioritiesImage from "@/imports/onboarding-priorities-v2.jpg"
 import { auth } from "./firebase"
 import { useVoiceTranscription } from "./useVoiceTranscription"
-import { completeOnboarding, loadTravelerProfile } from "./onboardingStore"
+import {
+  completeOnboarding,
+  loadTravelerProfile,
+  saveTravelerProfile,
+  type TravelerProfile,
+} from "./onboardingStore"
 import {
   HotelAnalysisProcessing,
   HotelAnalysisResultView,
@@ -91,11 +97,15 @@ const defaultDraftHotel: HotelOption = {
   image: rhodesImage,
 }
 
+const NEW_HOTEL_CHECK_ID = "__new-hotel-check__"
+
 const DraftContext = createContext<{
   hasDraft: boolean
   draftHotel: HotelOption | null
   hotelChecks: HotelCheckRecord[]
   activeCheckId: string | null
+  newHotelCheckActive: boolean
+  startNewHotelCheck: () => void
   createDraft: (hotel: HotelOption) => HotelCheckRecord
   resolveDraft: (hotelName?: string) => HotelCheckRecord | null
   openHotelCheck: (id: string) => void
@@ -108,6 +118,8 @@ const DraftContext = createContext<{
   draftHotel: null,
   hotelChecks: [],
   activeCheckId: null,
+  newHotelCheckActive: false,
+  startNewHotelCheck: () => {},
   createDraft: () => createHotelCheckRecord(defaultDraftHotel),
   resolveDraft: () => null,
   openHotelCheck: () => {},
@@ -128,9 +140,77 @@ const destinationImages: Record<string, string> = {
   "Hilton Tokyo": pragueImage,
 }
 
+const historyImagePool = [
+  rhodesImage,
+  baliImage,
+  barcelonaImage,
+  maldivesImage,
+  pragueImage,
+  hotelExteriorImage,
+  onboardingPreferencesImage,
+  onboardingPrioritiesImage,
+  onboardingTravelersImage,
+]
+
+function simpleDestination(place: string, city?: string, country?: string) {
+  const parts = place
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+  const destinationCountry = country?.trim() || parts.at(-1) || ""
+  const rawCity =
+    city?.trim() || (parts.length > 1 ? parts.at(-2) : parts[0]) || ""
+  const destinationCity = rawCity
+    .replace(/\b[A-Z]{0,2}-?\d{3,}\b/gi, "")
+    .replace(/^\W+|\W+$/g, "")
+    .trim()
+  return [destinationCity, destinationCountry]
+    .filter(
+      (part, index, values) =>
+        part &&
+        values.findIndex(
+          (value) => value.toLocaleLowerCase() === part.toLocaleLowerCase(),
+        ) === index,
+    )
+    .join(", ")
+}
+
+function historyImageSeed(entry: HistoryEntry) {
+  const value = entry[5] || `${entry[0]}|${entry[1]}`
+  return [...value].reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  )
+}
+
+function withUniqueHistoryImages(entries: HistoryEntry[]) {
+  const used = new Set<string>()
+  return entries.map((entry) => {
+    const seed = historyImageSeed(entry)
+    let image = historyImagePool[seed % historyImagePool.length]
+    for (let offset = 0; offset < historyImagePool.length; offset += 1) {
+      const candidate =
+        historyImagePool[(seed + offset) % historyImagePool.length]
+      if (!used.has(candidate)) {
+        image = candidate
+        break
+      }
+    }
+    used.add(image)
+    return [
+      entry[0],
+      entry[1],
+      entry[2],
+      image,
+      entry[4],
+      entry[5],
+    ] as HistoryEntry
+  })
+}
+
 function historyEntryFromRecord(record: HotelCheckRecord): HistoryEntry {
   return [
-    record.place,
+    simpleDestination(record.place, record.city, record.country),
     record.hotel,
     new Intl.DateTimeFormat("en", {
       month: "short",
@@ -241,19 +321,22 @@ function Button({
   onClick,
   primary = false,
   full = false,
+  disabled = false,
 }: {
   children: React.ReactNode
   onClick?: () => void
   primary?: boolean
   full?: boolean
+  disabled?: boolean
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       data-variant={primary ? "primary" : "secondary"}
       className={`${
         full ? "w-full" : ""
-      } inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-[12px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50 ${
+      } inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-[12px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50 disabled:cursor-not-allowed disabled:opacity-40 ${
         primary
           ? "bg-[#f06455] text-white hover:bg-[#df5549]"
           : "border border-[#dedad4] bg-white hover:border-[#aaa39a]"
@@ -372,10 +455,11 @@ function SearchHistoryModal({
     return () => window.removeEventListener("keydown", closeOnEscape)
   }, [onClose])
 
-  const { openHotelCheck } = useContext(DraftContext)
+  const { openHotelCheck, startNewHotelCheck } = useContext(DraftContext)
   const openEntry = (entry: HistoryEntry) => {
     onClose()
-    if (entry[5]) openHotelCheck(entry[5])
+    if (entry[5] === NEW_HOTEL_CHECK_ID) startNewHotelCheck()
+    else if (entry[5]) openHotelCheck(entry[5])
     else go(entry[4] === "Draft" ? "identify" : "result")
   }
 
@@ -484,7 +568,13 @@ function History({
   state: HistoryState
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
-  const { draftHotel, hotelChecks, openHotelCheck } = useContext(DraftContext)
+  const {
+    draftHotel,
+    hotelChecks,
+    newHotelCheckActive,
+    openHotelCheck,
+    startNewHotelCheck,
+  } = useContext(DraftContext)
   const history: HistoryEntry[] = [
     ["Rhodes, Greece", "Gennadi Grand Resort", "May 20, 2026", rhodesImage],
     ["Bali, Indonesia", "The Apurva Kempinski Bali", "May 18, 2026", baliImage],
@@ -517,23 +607,41 @@ function History({
     rhodesImage,
   ]
   const storedHistory = hotelChecks.map(historyEntryFromRecord)
-  const visibleHistory: HistoryEntry[] = (() => {
-    if (state === "empty") return storedHistory
-    if (state === "draft") {
-      return mergeHistoryEntries([draftEntry], storedHistory)
-    }
-    if (state === "history-with-draft") {
-      return storedHistory.length > 0
-        ? mergeHistoryEntries([draftEntry], storedHistory)
-        : mergeHistoryEntries([draftEntry], history)
-    }
-    if (state === "active") {
-      return storedHistory.length > 0
-        ? storedHistory
-        : mergeHistoryEntries([activeEntry], history)
-    }
-    return storedHistory.length > 0 ? storedHistory : history
-  })()
+  const visibleHistory: HistoryEntry[] = withUniqueHistoryImages(
+    (() => {
+      if (state === "empty") return storedHistory
+      if (state === "draft") {
+        return mergeHistoryEntries([draftEntry], storedHistory)
+      }
+      if (state === "history-with-draft") {
+        return storedHistory.length > 0
+          ? mergeHistoryEntries([draftEntry], storedHistory)
+          : mergeHistoryEntries([draftEntry], history)
+      }
+      if (state === "active") {
+        return storedHistory.length > 0
+          ? storedHistory
+          : mergeHistoryEntries([activeEntry], history)
+      }
+      return storedHistory.length > 0 ? storedHistory : history
+    })(),
+  )
+  if (newHotelCheckActive) {
+    visibleHistory.unshift(
+      ...withUniqueHistoryImages([
+        [
+          "New hotel check",
+          "Enter a hotel to begin",
+          "Today",
+          historyImagePool[0],
+          undefined,
+          NEW_HOTEL_CHECK_ID,
+        ],
+      ]),
+    )
+    const reassigned = withUniqueHistoryImages(visibleHistory)
+    visibleHistory.splice(0, visibleHistory.length, ...reassigned)
+  }
   return (
     <>
       <aside className="flex min-h-[calc(100vh-70px)] flex-col border-r border-[#e7e3dd] bg-white/80 backdrop-blur-md">
@@ -556,7 +664,7 @@ function History({
         </div>
         <nav className="space-y-1 border-b border-[#e7e3dd] px-4 pb-5">
           <button
-            onClick={() => go("home")}
+            onClick={startNewHotelCheck}
             className="sidebar-action sidebar-action--check group flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[12px] font-semibold transition-colors duration-200 hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb] focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
           >
             <span className="interactive-icon-surface sidebar-action-icon grid size-7 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
@@ -583,9 +691,11 @@ function History({
                 <button
                   key={recordId || `${place}-${status || "checked"}`}
                   onClick={() =>
-                    recordId
-                      ? openHotelCheck(recordId)
-                      : go(status === "Draft" ? "identify" : "result")
+                    recordId === NEW_HOTEL_CHECK_ID
+                      ? startNewHotelCheck()
+                      : recordId
+                        ? openHotelCheck(recordId)
+                        : go(status === "Draft" ? "identify" : "result")
                   }
                   className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-[#f3f0eb] focus:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f06455]/50"
                 >
@@ -633,66 +743,398 @@ function History({
     </>
   )
 }
-function Preferences({ go }: { go: Go }) {
-  const rows = [
-    ["users", "Travelers", "2 adults, 1 child"],
-    ["dog", "Special conditions", "Traveling with a dog"],
-    ["heart", "Travel preferences", "Beach, relaxation, great food"],
-    ["cup", "Meal type", "Breakfast included"],
-    ["plane", "Departure city", "Zurich (ZRH)"],
-  ]
+function Preferences() {
+  const [profile, setProfile] = useState<TravelerProfile | null>(null)
+  const [draft, setDraft] = useState<TravelerProfile | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState("")
+
+  useEffect(() => {
+    let active = true
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        if (active) setProfile(null)
+        return
+      }
+      void loadTravelerProfile(user.uid).then((loaded) => {
+        if (active) setProfile(loaded)
+      })
+    })
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
+
+  const beginEditing = () => {
+    if (!profile) return
+    setDraft({
+      ...profile,
+      childAges: [...profile.childAges],
+      preferences: profile.preferences.map((preference) => ({
+        ...preference,
+      })),
+    })
+    setSaveError("")
+    setEditing(true)
+  }
+
+  const updateDraft = (changes: Partial<TravelerProfile>) =>
+    setDraft((current) => (current ? { ...current, ...changes } : current))
+
+  const saveDraft = async () => {
+    if (!draft || draft.preferences.length < 3 || !draft.departureCity.trim())
+      return
+    setSaving(true)
+    setSaveError("")
+    const next = {
+      ...draft,
+      departureCity: draft.departureCity.trim(),
+      updatedAt: new Date().toISOString(),
+    }
+    try {
+      await saveTravelerProfile(next)
+      setProfile(next)
+      setEditing(false)
+      setDraft(null)
+    } catch (error) {
+      console.warn("Traveler profile could not be saved", error)
+      setSaveError("We couldn’t save your changes. Try again")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const displayed = editing ? draft : profile
+  const travelers = displayed
+    ? [
+        `${displayed.adults} ${displayed.adults === 1 ? "adult" : "adults"}`,
+        displayed.childAges.length
+          ? `${displayed.childAges.length} ${
+              displayed.childAges.length === 1 ? "child" : "children"
+            }`
+          : "no children",
+      ].join(", ")
+    : ""
+
   return (
-    <aside className="min-h-[calc(100vh-70px)] border-l border-[#e7e3dd] bg-white/80 p-7 backdrop-blur-md">
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="text-[21px] font-bold leading-tight">
-          Preferences for this trip
-        </h2>
-        <Button onClick={() => go("profile")}>Edit</Button>
+    <aside className="min-h-[calc(100vh-70px)] overflow-y-auto border-l border-[#e7e3dd] bg-white/80 p-6 backdrop-blur-md">
+      <div className="flex min-h-10 items-center justify-between gap-3">
+        <h2 className="text-[14px] font-semibold">Your preferences</h2>
+        {!editing && profile && <Button onClick={beginEditing}>Edit</Button>}
       </div>
-      <p className="mt-5 text-[12px] leading-relaxed text-[#7e7770]">
-        These preferences help us personalize your hotel match and
-        recommendations
-      </p>
-      <div className="mt-5 divide-y divide-[#ebe7e1]">
-        {rows.map(([icon, label, value]) => (
-          <div className="flex items-start gap-3 py-4" key={label}>
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
-              <Icon name={icon} />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[12px] text-[#8f8880]">{label}</p>
-              <p className="mt-1 text-[12px] font-semibold leading-snug">
-                {value}
-              </p>
+
+      {!displayed ? (
+        <p className="mt-5 text-[12px] leading-relaxed text-[#7e7770]">
+          Your onboarding preferences will appear here
+        </p>
+      ) : (
+        <>
+          <p className="mt-4 text-[12px] leading-relaxed text-[#7e7770]">
+            These settings are used for every new hotel check
+          </p>
+
+          <div className="mt-4 border-b border-[#ebe7e1] py-4">
+            <div className="flex items-start gap-3">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
+                <Icon name="users" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] text-[#8f8880]">Travelers</p>
+                <p className="mt-1 text-[12px] font-semibold leading-snug">
+                  {travelers}
+                </p>
+                {editing && draft && (
+                  <div className="mt-3 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[12px]">Adults</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label="Decrease adults"
+                          disabled={draft.adults <= 1}
+                          onClick={() =>
+                            updateDraft({
+                              adults: Math.max(1, draft.adults - 1),
+                            })
+                          }
+                          className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
+                        >
+                          −
+                        </button>
+                        <span className="w-5 text-center text-[12px] tabular-nums">
+                          {draft.adults}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="Increase adults"
+                          onClick={() =>
+                            updateDraft({ adults: draft.adults + 1 })
+                          }
+                          className="grid size-8 place-items-center rounded-full border border-[#d8d3cc]"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    {draft.childAges.map((age, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateDraft({
+                              childAges: draft.childAges.filter(
+                                (_, childIndex) => childIndex !== index,
+                              ),
+                            })
+                          }
+                          className="text-[12px] text-[#8f8880] underline-offset-2 hover:underline"
+                        >
+                          Child {index + 1}
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            aria-label={`Decrease age for child ${index + 1}`}
+                            disabled={age <= 0}
+                            onClick={() =>
+                              updateDraft({
+                                childAges: draft.childAges.map(
+                                  (value, childIndex) =>
+                                    childIndex === index
+                                      ? Math.max(0, value - 1)
+                                      : value,
+                                ),
+                              })
+                            }
+                            className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
+                          >
+                            −
+                          </button>
+                          <span className="w-[72px] text-center text-[11px] tabular-nums">
+                            {age === 0
+                              ? "Under 1 year"
+                              : `${age} ${age === 1 ? "year" : "years"}`}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Increase age for child ${index + 1}`}
+                            disabled={age >= 17}
+                            onClick={() =>
+                              updateDraft({
+                                childAges: draft.childAges.map(
+                                  (value, childIndex) =>
+                                    childIndex === index
+                                      ? Math.min(17, value + 1)
+                                      : value,
+                                ),
+                              })
+                            }
+                            className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateDraft({ childAges: [...draft.childAges, 0] })
+                      }
+                      className="text-[12px] font-semibold text-[#e55e51]"
+                    >
+                      + Add child
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        ))}
-      </div>
-      <div className="mt-4 rounded-[22px] bg-[#f3f0eb] p-5">
-        <b className="text-[12px]">We'll pay special attention to:</b>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {[
-            "Family facilities",
-            "Pet policy",
-            "Food options",
-            "Quiet rooms",
-            "Easy access",
-          ].map((x) => (
-            <span
-              key={x}
-              className="rounded-full bg-white px-3 py-2 text-[12px] text-[#746e67]"
-            >
-              {x}
+
+          <div className="flex items-start gap-3 border-b border-[#ebe7e1] py-4">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
+              <Icon name="dog" />
             </span>
-          ))}
-        </div>
-      </div>
-      <button
-        onClick={() => go("profile")}
-        className="mt-5 text-[12px] font-semibold"
-      >
-        View full profile →
-      </button>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] text-[#8f8880]">Pets</p>
+              <p className="mt-1 text-[12px] font-semibold leading-snug">
+                {displayed.travelsWithPets ? "Traveling with a pet" : "No pets"}
+              </p>
+            </div>
+            {editing && draft && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={draft.travelsWithPets}
+                onClick={() =>
+                  updateDraft({ travelsWithPets: !draft.travelsWithPets })
+                }
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                  draft.travelsWithPets ? "bg-[#f75b56]" : "bg-[#d8d6d2]"
+                }`}
+              >
+                <span
+                  className={`absolute left-0 top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${
+                    draft.travelsWithPets ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-start gap-3 border-b border-[#ebe7e1] py-4">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
+              <Icon name="plane" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] text-[#8f8880]">Departure city</p>
+              {editing && draft ? (
+                <input
+                  value={draft.departureCity}
+                  onChange={(event) =>
+                    updateDraft({ departureCity: event.target.value })
+                  }
+                  placeholder="Enter a city or airport"
+                  className="mt-2 h-10 w-full rounded-xl border border-[#d8d3cc] bg-white px-3 text-[12px] outline-none focus:border-[#f06455]"
+                />
+              ) : (
+                <p className="mt-1 text-[12px] font-semibold leading-snug">
+                  {displayed.departureCity || "Not set"}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[22px] bg-[#f3f0eb] p-4">
+            <p className="text-[12px] font-semibold">Hotel preferences</p>
+            <div className="mt-3 space-y-2">
+              {displayed.preferences.map((preference) => (
+                <div
+                  key={preference.label}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2"
+                >
+                  <span className="min-w-0 truncate text-[12px]">
+                    {preference.label}
+                  </span>
+                  {editing && draft ? (
+                    <div className="flex shrink-0 items-center gap-1">
+                      {(["important", "critical"] as const).map((priority) => (
+                        <button
+                          key={priority}
+                          type="button"
+                          aria-label={`Set ${preference.label} as ${priority}`}
+                          onClick={() =>
+                            updateDraft({
+                              preferences: draft.preferences.map((item) =>
+                                item.label === preference.label
+                                  ? { ...item, priority }
+                                  : item,
+                              ),
+                            })
+                          }
+                          className={`rounded-full px-2 py-1 text-[10px] capitalize ${
+                            preference.priority === priority
+                              ? "bg-[#f75b56] text-white"
+                              : "bg-[#f3f0eb] text-[#77716a]"
+                          }`}
+                        >
+                          {priority}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${preference.label}`}
+                        disabled={draft.preferences.length <= 3}
+                        onClick={() =>
+                          updateDraft({
+                            preferences: draft.preferences.filter(
+                              (item) => item.label !== preference.label,
+                            ),
+                          })
+                        }
+                        className="ml-1 grid size-6 place-items-center rounded-full text-[#8f8880] disabled:opacity-25"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="shrink-0 text-[10px] capitalize text-[#8f8880]">
+                      {preference.priority}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {editing && draft && (
+              <select
+                defaultValue=""
+                onChange={(event) => {
+                  if (!event.target.value) return
+                  updateDraft({
+                    preferences: [
+                      ...draft.preferences,
+                      { label: event.target.value, priority: "important" },
+                    ],
+                  })
+                  event.target.value = ""
+                }}
+                className="mt-3 h-10 w-full rounded-xl border border-[#d8d3cc] bg-white px-3 text-[12px] outline-none"
+              >
+                <option value="">+ Add preference</option>
+                {onboardingPreferenceOptions
+                  .filter(
+                    (label) =>
+                      !draft.preferences.some(
+                        (preference) => preference.label === label,
+                      ),
+                  )
+                  .map((label) => (
+                    <option key={label} value={label}>
+                      {label}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </div>
+
+          {editing && (
+            <div className="mt-4">
+              {saveError && (
+                <p role="alert" className="mb-3 text-[12px] text-[#b2473e]">
+                  {saveError}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  primary
+                  disabled={
+                    saving ||
+                    !draft?.departureCity.trim() ||
+                    (draft?.preferences.length || 0) < 3
+                  }
+                  onClick={() => void saveDraft()}
+                >
+                  {saving ? "Saving…" : "Save"}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setEditing(false)
+                    setDraft(null)
+                    setSaveError("")
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </aside>
   )
 }
@@ -752,7 +1194,7 @@ function Shell({
         >
           {children}
         </main>
-        {desktop && <Preferences go={go} />}
+        {desktop && <Preferences />}
       </div>
     </div>
   )
@@ -784,8 +1226,8 @@ function hotelSearchQuery(value: string) {
 function hotelOptionFromGoogle(hotel: CanonicalGooglePlaceHotel): HotelOption {
   return {
     place:
-      hotel.formattedAddress ||
       [hotel.city, hotel.country].filter(Boolean).join(", ") ||
+      simpleDestination(hotel.formattedAddress || "") ||
       "Location unavailable",
     hotel: hotel.name,
     placeId: hotel.placeId,
@@ -806,12 +1248,15 @@ function Home({
 }) {
   const hotelInputRef = useRef<HTMLInputElement>(null)
   const composerInputRef = useRef<HTMLInputElement>(null)
+  const chatScrollRef = useRef<HTMLDivElement>(null)
   const {
     activeCheckId,
     createDraft,
+    newHotelCheckActive,
     resolveDraft,
     hotelChecks,
     openHotelCheck,
+    startNewHotelCheck,
     updateHotelCheck,
   } = useContext(DraftContext)
   const [inputValue, setInputValue] = useState("")
@@ -820,7 +1265,7 @@ function Home({
   const [error, setError] = useState("")
   const [chatStage, setChatStage] =
     useState<"idle" | "processing" | "confirmation" | "matches" | "clarify" | "none" | "search-error" | "awaiting-input" | "analysis" | "analysis-result">(
-      "idle",
+      newHotelCheckActive ? "awaiting-input" : "idle",
     )
   const [candidates, setCandidates] = useState<HotelOption[]>([])
   const [searchError, setSearchError] = useState("")
@@ -852,6 +1297,21 @@ function Home({
     window.setTimeout(() => composerInputRef.current?.focus(), 0)
   }, [])
   const voiceInput = useVoiceTranscription(insertTranscription)
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const chat = chatScrollRef.current
+      if (chat) chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [
+    activeCheckId,
+    analysisResult,
+    analysisStage,
+    chatMessages.length,
+    chatStage,
+    hotelQuestions.length,
+  ])
 
   const applyAnalysisJob = useCallback(
     (job: HotelAnalysisJob, checkId: string) => {
@@ -1263,7 +1723,10 @@ function Home({
           </div>
         ) : (
           <div className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+            <div
+              ref={chatScrollRef}
+              className="min-h-0 flex-1 overflow-y-auto pb-6"
+            >
               {chatMessages.map((message, index) => (
                 <div
                   key={`${message}-${index}`}
@@ -1359,7 +1822,11 @@ function Home({
 
               {chatStage === "awaiting-input" && (
                 <div className="mt-7" aria-live="polite">
-                  <p className="text-[14px]">Enter another hotel</p>
+                  <p className="text-[14px]">
+                    {newHotelCheckActive
+                      ? "Hi! Which hotel would you like me to check?"
+                      : "Enter another hotel"}
+                  </p>
                   <p className="mt-2 text-[14px] text-[#817a73]">
                     You can use a hotel name, destination, partial phrase, or
                     link
@@ -1575,9 +2042,6 @@ function Home({
             <h2 className="text-[23px] font-bold">
               Start with a quick template
             </h2>
-            <span className="text-[12px] text-[#817a73]">
-              View all templates →
-            </span>
           </div>
           <div
             className={`mt-6 grid gap-4 ${
@@ -1585,7 +2049,7 @@ function Home({
             }`}
           >
             <button
-              onClick={() => hotelInputRef.current?.focus()}
+              onClick={startNewHotelCheck}
               className="flex min-h-60 flex-col justify-end rounded-[26px] bg-[linear-gradient(135deg,#faf4ee,#f6e2d9)] p-7 text-left"
             >
               <b className="text-[18px]">Check how a hotel fits you</b>
@@ -1724,6 +2188,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
   const [adults, setAdults] = useState(1)
   const [children, setChildren] = useState<number[]>([])
   const [travelsWithPets, setTravelsWithPets] = useState(false)
+  const [departureCity, setDepartureCity] = useState("")
   const [selectedPreferences, setSelectedPreferences] = useState<string[]>([])
   const [customPreferences, setCustomPreferences] = useState<string[]>([])
   const [customPreference, setCustomPreference] = useState("")
@@ -1777,6 +2242,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
         adults,
         childAges: children,
         travelsWithPets,
+        departureCity: departureCity.trim(),
         preferences: selectedPreferences.map((label) => ({
           label,
           priority: priorities[label],
@@ -1964,6 +2430,25 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                     />
                   </button>
                 </section>
+
+                <section className="rounded-[24px] bg-white p-5">
+                  <label htmlFor="onboarding-departure-city">
+                    <span className="block text-[14px] font-semibold">
+                      Departure city
+                    </span>
+                    <span className="mt-1 block text-[12px] text-[#aaa59f]">
+                      Used as the default for new trips
+                    </span>
+                  </label>
+                  <input
+                    id="onboarding-departure-city"
+                    value={departureCity}
+                    onChange={(event) => setDepartureCity(event.target.value)}
+                    placeholder="Enter a city or airport"
+                    autoComplete="address-level2"
+                    className="interactive-field mt-4 h-12 w-full rounded-2xl border border-[#d9d5cf] bg-white px-4 text-[14px] outline-none placeholder:text-[#aaa59f] focus:border-[#f06455]"
+                  />
+                </section>
               </div>
             )}
 
@@ -2108,6 +2593,7 @@ function OnboardingFlow({ viewport, go }: { viewport: Viewport go: Go }) {
                 data-variant="primary"
                 disabled={
                   isSaving ||
+                  (step === 1 && !departureCity.trim()) ||
                   (step === 2 && !hasMinimumPreferences) ||
                   (step === 3 && !allPrioritiesAssigned)
                 }
@@ -2787,9 +3273,11 @@ export default function VisualLab() {
   })
   const [homeInstance, setHomeInstance] = useState(0)
   const [activeCheckId, setActiveCheckId] = useState<string | null>(null)
+  const [newHotelCheckActive, setNewHotelCheckActive] = useState(false)
 
   const navigate: Go = (id) => {
     if (id === "home") {
+      setNewHotelCheckActive(false)
       setActiveCheckId(null)
       setHomeInstance((current) => current + 1)
     }
@@ -2798,6 +3286,7 @@ export default function VisualLab() {
 
   const createDraft = (hotel: HotelOption) => {
     const record = createHotelCheckRecord(hotel)
+    setNewHotelCheckActive(false)
     setDraftHotel(hotel)
     setHotelChecks(upsertLocalHotelCheck(record))
     void saveHotelCheck(record)
@@ -2834,7 +3323,15 @@ export default function VisualLab() {
   }
 
   const openHotelCheck = (id: string) => {
+    setNewHotelCheckActive(false)
     setActiveCheckId(id)
+    setScreen("home")
+    setHomeInstance((current) => current + 1)
+  }
+
+  const startNewHotelCheck = () => {
+    setNewHotelCheckActive(true)
+    setActiveCheckId(null)
     setScreen("home")
     setHomeInstance((current) => current + 1)
   }
@@ -2860,6 +3357,8 @@ export default function VisualLab() {
         draftHotel: currentDraftHotel,
         hotelChecks,
         activeCheckId,
+        newHotelCheckActive,
+        startNewHotelCheck,
         createDraft,
         resolveDraft,
         openHotelCheck,

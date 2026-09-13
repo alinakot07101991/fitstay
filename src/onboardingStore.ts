@@ -11,6 +11,7 @@ export type TravelerProfile = {
   adults: number
   childAges: number[]
   travelsWithPets: boolean
+  departureCity: string
   preferences: TravelerPreference[]
   updatedAt: string
 }
@@ -31,9 +32,19 @@ function validTravelerProfile(value: unknown): value is TravelerProfile {
     Number.isFinite(profile.adults) &&
     Array.isArray(profile.childAges) &&
     typeof profile.travelsWithPets === "boolean" &&
+    (profile.departureCity === undefined ||
+      typeof profile.departureCity === "string") &&
     Array.isArray(profile.preferences) &&
     typeof profile.updatedAt === "string"
   )
+}
+
+function normalizeTravelerProfile(profile: TravelerProfile): TravelerProfile {
+  return {
+    ...profile,
+    departureCity:
+      typeof profile.departureCity === "string" ? profile.departureCity : "",
+  }
 }
 
 function readLocalTravelerProfile(uid: string): TravelerProfile | null {
@@ -41,7 +52,9 @@ function readLocalTravelerProfile(uid: string): TravelerProfile | null {
     const stored = window.localStorage.getItem(profileKey(uid))
     if (!stored) return null
     const profile: unknown = JSON.parse(stored)
-    return validTravelerProfile(profile) ? profile : null
+    return validTravelerProfile(profile)
+      ? normalizeTravelerProfile(profile)
+      : null
   } catch {
     return null
   }
@@ -53,17 +66,31 @@ export async function loadTravelerProfile(uid: string) {
     const snapshot = await getDoc(doc(database, "users", uid))
     const remoteProfile: unknown = snapshot.data()?.travelerProfile
     if (validTravelerProfile(remoteProfile)) {
-      window.localStorage.setItem(
-        profileKey(uid),
-        JSON.stringify(remoteProfile),
-      )
-      return remoteProfile
+      const profile = normalizeTravelerProfile(remoteProfile)
+      window.localStorage.setItem(profileKey(uid), JSON.stringify(profile))
+      return profile
     }
     return localProfile
   } catch (error) {
     console.warn("Traveler profile could not be loaded from Firestore", error)
     return localProfile
   }
+}
+
+export async function saveTravelerProfile(profile: TravelerProfile) {
+  const user = auth.currentUser
+  if (!user) throw new Error("Authentication is required to save the profile")
+
+  await setDoc(
+    doc(database, "users", user.uid),
+    {
+      travelerProfile: profile,
+      updatedAt: profile.updatedAt,
+    },
+    { merge: true },
+  )
+
+  window.localStorage.setItem(profileKey(user.uid), JSON.stringify(profile))
 }
 
 export async function loadOnboardingCompleted(uid: string) {
