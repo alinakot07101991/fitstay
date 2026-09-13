@@ -994,7 +994,7 @@ function Preferences({
     setDraft((current) => (current ? { ...current, ...changes } : current))
 
   const saveDraft = async () => {
-    if (!draft || !draft.departureCity.trim()) return
+    if (!draft) return
     setSaving(true)
     setSaveError("")
     const next = {
@@ -1020,6 +1020,23 @@ function Preferences({
   }
 
   const displayed = editing ? draft : baseProfile
+  const hasUnsavedChanges = Boolean(
+    draft &&
+      baseProfile &&
+      (draft.adults !== baseProfile.adults ||
+        draft.travelsWithPets !== baseProfile.travelsWithPets ||
+        draft.departureCity.trim() !== baseProfile.departureCity.trim() ||
+        draft.childAges.length !== baseProfile.childAges.length ||
+        draft.childAges.some(
+          (age, index) => age !== baseProfile.childAges[index],
+        ) ||
+        draft.preferences.length !== baseProfile.preferences.length ||
+        draft.preferences.some(
+          (preference, index) =>
+            preference.label !== baseProfile.preferences[index]?.label ||
+            preference.priority !== baseProfile.preferences[index]?.priority,
+        )),
+  )
   const normalizedDepartureQuery = draft?.departureCity
     .trim()
     .toLocaleLowerCase()
@@ -1407,7 +1424,7 @@ function Preferences({
                     />
                   </button>
                   {preferenceOptionsOpen && (
-                    <div className="motion-swap absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-72 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-2 shadow-[0_16px_34px_rgba(35,30,27,.12)]">
+                    <div className="motion-swap absolute bottom-[calc(100%+6px)] left-0 right-0 z-30 max-h-72 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-2 shadow-[0_16px_34px_rgba(35,30,27,.12)]">
                       <div className="flex items-center gap-2 border-b border-[#ebe7e1] p-1 pb-2">
                         <input
                           value={customPreference}
@@ -1472,7 +1489,7 @@ function Preferences({
           <div className="flex gap-2">
             <Button
               primary
-              disabled={saving || !draft?.departureCity.trim()}
+              disabled={saving || !hasUnsavedChanges}
               onClick={() => void saveDraft()}
             >
               {saving ? "Saving…" : "Save"}
