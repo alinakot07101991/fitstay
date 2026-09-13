@@ -9,6 +9,7 @@ import {
 import { onAuthStateChanged } from "firebase/auth"
 import {
   Bookmark,
+  ChevronDown,
   ChevronRight,
   CircleHelp,
   Coffee,
@@ -47,7 +48,6 @@ import { useVoiceTranscription } from "./useVoiceTranscription"
 import {
   completeOnboarding,
   loadTravelerProfile,
-  saveTravelerProfile,
   type TravelerProfile,
 } from "./onboardingStore"
 import {
@@ -108,7 +108,9 @@ const DraftContext = createContext<{
   draftHotel: HotelOption | null
   hotelChecks: HotelCheckRecord[]
   activeCheckId: string | null
+  tripContext: TravelerProfile | null
   newHotelCheckActive: boolean
+  setTripContext: (profile: TravelerProfile) => void
   startNewHotelCheck: () => void
   deleteHotelCheck: (id: string) => void
   createDraft: (hotel: HotelOption) => HotelCheckRecord
@@ -123,7 +125,9 @@ const DraftContext = createContext<{
   draftHotel: null,
   hotelChecks: [],
   activeCheckId: null,
+  tripContext: null,
   newHotelCheckActive: false,
+  setTripContext: () => {},
   startNewHotelCheck: () => {},
   deleteHotelCheck: () => {},
   createDraft: () => createHotelCheckRecord(defaultDraftHotel),
@@ -840,12 +844,94 @@ function History({
     </>
   )
 }
-function Preferences() {
+
+type AirportCity = {
+  city: string
+  country: string
+  codes: string
+}
+
+const airportCities: AirportCity[] = [
+  { city: "Amsterdam", country: "Netherlands", codes: "AMS" },
+  { city: "Athens", country: "Greece", codes: "ATH" },
+  { city: "Barcelona", country: "Spain", codes: "BCN" },
+  { city: "Basel", country: "Switzerland", codes: "BSL" },
+  { city: "Beijing", country: "China", codes: "PEK, PKX" },
+  { city: "Berlin", country: "Germany", codes: "BER" },
+  { city: "Boston", country: "United States", codes: "BOS" },
+  { city: "Brussels", country: "Belgium", codes: "BRU" },
+  { city: "Budapest", country: "Hungary", codes: "BUD" },
+  { city: "Cairo", country: "Egypt", codes: "CAI" },
+  { city: "Cape Town", country: "South Africa", codes: "CPT" },
+  { city: "Chicago", country: "United States", codes: "ORD, MDW" },
+  { city: "Copenhagen", country: "Denmark", codes: "CPH" },
+  { city: "Delhi", country: "India", codes: "DEL" },
+  { city: "Doha", country: "Qatar", codes: "DOH" },
+  { city: "Dubai", country: "United Arab Emirates", codes: "DXB" },
+  { city: "Dublin", country: "Ireland", codes: "DUB" },
+  { city: "Frankfurt", country: "Germany", codes: "FRA" },
+  { city: "Geneva", country: "Switzerland", codes: "GVA" },
+  { city: "Helsinki", country: "Finland", codes: "HEL" },
+  { city: "Hong Kong", country: "Hong Kong", codes: "HKG" },
+  { city: "Istanbul", country: "Türkiye", codes: "IST, SAW" },
+  { city: "Lisbon", country: "Portugal", codes: "LIS" },
+  { city: "London", country: "United Kingdom", codes: "LHR, LGW, LCY" },
+  { city: "Los Angeles", country: "United States", codes: "LAX" },
+  { city: "Madrid", country: "Spain", codes: "MAD" },
+  { city: "Málaga", country: "Spain", codes: "AGP" },
+  { city: "Melbourne", country: "Australia", codes: "MEL" },
+  { city: "Mexico City", country: "Mexico", codes: "MEX" },
+  { city: "Miami", country: "United States", codes: "MIA" },
+  { city: "Milan", country: "Italy", codes: "MXP, LIN, BGY" },
+  { city: "Montreal", country: "Canada", codes: "YUL" },
+  { city: "Munich", country: "Germany", codes: "MUC" },
+  { city: "New York", country: "United States", codes: "JFK, EWR, LGA" },
+  { city: "Nice", country: "France", codes: "NCE" },
+  { city: "Oslo", country: "Norway", codes: "OSL" },
+  { city: "Paris", country: "France", codes: "CDG, ORY" },
+  { city: "Prague", country: "Czechia", codes: "PRG" },
+  { city: "Reykjavík", country: "Iceland", codes: "KEF" },
+  { city: "Rome", country: "Italy", codes: "FCO, CIA" },
+  { city: "San Francisco", country: "United States", codes: "SFO" },
+  { city: "Seoul", country: "South Korea", codes: "ICN, GMP" },
+  { city: "Singapore", country: "Singapore", codes: "SIN" },
+  { city: "Stockholm", country: "Sweden", codes: "ARN" },
+  { city: "Sydney", country: "Australia", codes: "SYD" },
+  { city: "Tokyo", country: "Japan", codes: "HND, NRT" },
+  { city: "Toronto", country: "Canada", codes: "YYZ" },
+  { city: "Venice", country: "Italy", codes: "VCE" },
+  { city: "Vienna", country: "Austria", codes: "VIE" },
+  { city: "Warsaw", country: "Poland", codes: "WAW" },
+  { city: "Zürich", country: "Switzerland", codes: "ZRH" },
+]
+
+function airportCityValue(option: AirportCity) {
+  return `${option.city} (${option.codes.split(",")[0]})`
+}
+
+function Preferences({
+  onEditingChange,
+}: {
+  onEditingChange: (editing: boolean) => void
+}) {
+  const {
+    activeCheckId,
+    hotelChecks,
+    newHotelCheckActive,
+    setTripContext,
+    tripContext,
+    updateHotelCheck,
+  } = useContext(DraftContext)
   const [profile, setProfile] = useState<TravelerProfile | null>(null)
   const [draft, setDraft] = useState<TravelerProfile | null>(null)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
+  const [departureOptionsOpen, setDepartureOptionsOpen] = useState(false)
+  const [preferenceOptionsOpen, setPreferenceOptionsOpen] = useState(false)
+  const [customPreference, setCustomPreference] = useState("")
+  const departurePickerRef = useRef<HTMLDivElement>(null)
+  const preferencePickerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let active = true
@@ -864,25 +950,51 @@ function Preferences() {
     }
   }, [])
 
+  useEffect(() => {
+    const closePopovers = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!departurePickerRef.current?.contains(target))
+        setDepartureOptionsOpen(false)
+      if (!preferencePickerRef.current?.contains(target))
+        setPreferenceOptionsOpen(false)
+    }
+    document.addEventListener("pointerdown", closePopovers)
+    return () => document.removeEventListener("pointerdown", closePopovers)
+  }, [])
+
+  useEffect(
+    () => () => {
+      onEditingChange(false)
+    },
+    [onEditingChange],
+  )
+
+  const activeRecord = activeCheckId
+    ? hotelChecks.find((record) => record.id === activeCheckId)
+    : newHotelCheckActive
+      ? null
+      : hotelChecks.find((record) => record.status === "draft")
+  const baseProfile = tripContext || activeRecord?.tripProfile || profile
+
   const beginEditing = () => {
-    if (!profile) return
+    if (!baseProfile) return
     setDraft({
-      ...profile,
-      childAges: [...profile.childAges],
-      preferences: profile.preferences.map((preference) => ({
+      ...baseProfile,
+      childAges: [...baseProfile.childAges],
+      preferences: baseProfile.preferences.map((preference) => ({
         ...preference,
       })),
     })
     setSaveError("")
     setEditing(true)
+    onEditingChange(true)
   }
 
   const updateDraft = (changes: Partial<TravelerProfile>) =>
     setDraft((current) => (current ? { ...current, ...changes } : current))
 
   const saveDraft = async () => {
-    if (!draft || draft.preferences.length < 3 || !draft.departureCity.trim())
-      return
+    if (!draft || !draft.departureCity.trim()) return
     setSaving(true)
     setSaveError("")
     const next = {
@@ -891,19 +1003,52 @@ function Preferences() {
       updatedAt: new Date().toISOString(),
     }
     try {
-      await saveTravelerProfile(next)
+      setTripContext(next)
+      if (activeRecord) updateHotelCheck(activeRecord.id, { tripProfile: next })
       setProfile(next)
       setEditing(false)
       setDraft(null)
+      setDepartureOptionsOpen(false)
+      setPreferenceOptionsOpen(false)
+      onEditingChange(false)
     } catch (error) {
-      console.warn("Traveler profile could not be saved", error)
+      console.warn("Trip preferences could not be saved", error)
       setSaveError("We couldn’t save your changes. Try again")
     } finally {
       setSaving(false)
     }
   }
 
-  const displayed = editing ? draft : profile
+  const displayed = editing ? draft : baseProfile
+  const normalizedDepartureQuery = draft?.departureCity
+    .trim()
+    .toLocaleLowerCase()
+  const departureSuggestions = normalizedDepartureQuery
+    ? airportCities
+        .filter((option) =>
+          `${option.city} ${option.country} ${option.codes}`
+            .toLocaleLowerCase()
+            .includes(normalizedDepartureQuery),
+        )
+        .slice(0, 7)
+    : []
+
+  const addPreference = (value: string) => {
+    if (!draft) return
+    const label = value.trim()
+    if (!label) return
+    const exists = draft.preferences.some(
+      (preference) =>
+        preference.label.toLocaleLowerCase() === label.toLocaleLowerCase(),
+    )
+    if (!exists)
+      updateDraft({
+        preferences: [...draft.preferences, { label, priority: "important" }],
+      })
+    setCustomPreference("")
+    setPreferenceOptionsOpen(false)
+  }
+
   const travelers = displayed
     ? [
         `${displayed.adults} ${displayed.adults === 1 ? "adult" : "adults"}`,
@@ -919,7 +1064,7 @@ function Preferences() {
     <aside className="min-h-[calc(100vh-70px)] overflow-y-auto border-l border-[#e7e3dd] bg-white/80 p-6 backdrop-blur-md">
       <div className="flex min-h-10 items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold">Your preferences</h2>
-        {!editing && profile && (
+        {!editing && baseProfile && (
           <button
             type="button"
             onClick={beginEditing}
@@ -937,8 +1082,8 @@ function Preferences() {
         </p>
       ) : (
         <>
-          <p className="mt-4 text-[12px] leading-relaxed text-[#7e7770]">
-            These settings are used for every new hotel check
+          <p className="mt-2 text-[12px] leading-relaxed text-[#7e7770]">
+            Changes apply to this chat and carry into your next new check
           </p>
 
           <div className="mt-4 border-b border-[#ebe7e1] py-4">
@@ -989,19 +1134,26 @@ function Preferences() {
                         key={index}
                         className="flex items-center justify-between gap-2"
                       >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateDraft({
-                              childAges: draft.childAges.filter(
-                                (_, childIndex) => childIndex !== index,
-                              ),
-                            })
-                          }
-                          className="text-[12px] text-[#8f8880] underline-offset-2 hover:underline"
-                        >
-                          Child {index + 1}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[12px] text-[#8f8880]">
+                            Child {index + 1}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Remove child ${index + 1}`}
+                            title="Remove child"
+                            onClick={() =>
+                              updateDraft({
+                                childAges: draft.childAges.filter(
+                                  (_, childIndex) => childIndex !== index,
+                                ),
+                              })
+                            }
+                            className="grid size-7 place-items-center rounded-lg text-[#8f8880] hover:text-[#d95448]"
+                          >
+                            <Icon name="trash" size={14} />
+                          </button>
+                        </div>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -1080,13 +1232,15 @@ function Preferences() {
                 onClick={() =>
                   updateDraft({ travelsWithPets: !draft.travelsWithPets })
                 }
-                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                className={`relative h-6 w-[41px] shrink-0 rounded-full transition-colors ${
                   draft.travelsWithPets ? "bg-[#f75b56]" : "bg-[#d8d6d2]"
                 }`}
               >
                 <span
-                  className={`absolute left-0 top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${
-                    draft.travelsWithPets ? "translate-x-6" : "translate-x-1"
+                  className={`absolute left-1 top-1 size-4 rounded-full bg-white shadow-sm transition-transform ${
+                    draft.travelsWithPets
+                      ? "translate-x-[17px]"
+                      : "translate-x-0"
                   }`}
                 />
               </button>
@@ -1100,14 +1254,68 @@ function Preferences() {
             <div className="min-w-0 flex-1">
               <p className="text-[12px] text-[#8f8880]">Departure city</p>
               {editing && draft ? (
-                <input
-                  value={draft.departureCity}
-                  onChange={(event) =>
-                    updateDraft({ departureCity: event.target.value })
-                  }
-                  placeholder="Enter a city or airport"
-                  className="mt-2 h-10 w-full rounded-xl border border-[#d8d3cc] bg-white px-3 text-[12px] outline-none focus:border-[#f06455]"
-                />
+                <div ref={departurePickerRef} className="relative mt-2">
+                  <input
+                    value={draft.departureCity}
+                    onChange={(event) => {
+                      updateDraft({ departureCity: event.target.value })
+                      setDepartureOptionsOpen(Boolean(event.target.value))
+                    }}
+                    onFocus={() =>
+                      setDepartureOptionsOpen(Boolean(draft.departureCity))
+                    }
+                    placeholder="Enter a city or airport"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={departureOptionsOpen}
+                    aria-controls="departure-city-options"
+                    className="h-10 w-full rounded-xl border border-[#d8d3cc] bg-white px-3 pr-9 text-[12px] outline-none focus:border-[#f06455]"
+                  />
+                  <Search className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#8f8880]" />
+                  {departureOptionsOpen && normalizedDepartureQuery && (
+                    <div
+                      id="departure-city-options"
+                      role="listbox"
+                      className="motion-swap absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-64 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-1.5 shadow-[0_16px_34px_rgba(35,30,27,.12)]"
+                    >
+                      {departureSuggestions.length ? (
+                        departureSuggestions.map((option) => (
+                          <button
+                            key={`${option.city}-${option.codes}`}
+                            type="button"
+                            role="option"
+                            aria-selected={
+                              draft.departureCity === airportCityValue(option)
+                            }
+                            onClick={() => {
+                              updateDraft({
+                                departureCity: airportCityValue(option),
+                              })
+                              setDepartureOptionsOpen(false)
+                            }}
+                            className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb]"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-[12px] font-semibold">
+                                {option.city}
+                              </span>
+                              <span className="mt-0.5 block truncate text-[11px] text-[#8f8880]">
+                                {option.country}
+                              </span>
+                            </span>
+                            <span className="shrink-0 rounded-full bg-[#f3f0eb] px-2 py-1 text-[10px] text-[#6f6962]">
+                              {option.codes}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-3 py-3 text-[12px] text-[#8f8880]">
+                          No airport cities found
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               ) : (
                 <p className="mt-1 text-[12px] font-semibold leading-snug">
                   {displayed.departureCity || "Not set"}
@@ -1155,7 +1363,6 @@ function Preferences() {
                       <button
                         type="button"
                         aria-label={`Remove ${preference.label}`}
-                        disabled={draft.preferences.length <= 3}
                         onClick={() =>
                           updateDraft({
                             preferences: draft.preferences.filter(
@@ -1163,7 +1370,7 @@ function Preferences() {
                             ),
                           })
                         }
-                        className="ml-1 grid size-6 place-items-center rounded-full text-[#8f8880] disabled:opacity-25"
+                        className="ml-1 grid size-6 place-items-center rounded-full text-[#8f8880] hover:text-[#d95448]"
                       >
                         ×
                       </button>
@@ -1177,34 +1384,73 @@ function Preferences() {
               ))}
             </div>
             {editing && draft && (
-              <select
-                defaultValue=""
-                onChange={(event) => {
-                  if (!event.target.value) return
-                  updateDraft({
-                    preferences: [
-                      ...draft.preferences,
-                      { label: event.target.value, priority: "important" },
-                    ],
-                  })
-                  event.target.value = ""
-                }}
-                className="mt-3 h-10 w-full rounded-xl border border-[#d8d3cc] bg-white px-3 text-[12px] outline-none"
-              >
-                <option value="">+ Add preference</option>
-                {onboardingPreferenceOptions
-                  .filter(
-                    (label) =>
-                      !draft.preferences.some(
-                        (preference) => preference.label === label,
-                      ),
-                  )
-                  .map((label) => (
-                    <option key={label} value={label}>
-                      {label}
-                    </option>
-                  ))}
-              </select>
+              <div ref={preferencePickerRef} className="relative mt-3">
+                <button
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={preferenceOptionsOpen}
+                  onClick={() =>
+                    setPreferenceOptionsOpen((current) => !current)
+                  }
+                  className="flex h-10 w-full items-center justify-between gap-3 rounded-xl border border-[#d8d3cc] bg-white px-3 text-left text-[12px] outline-none focus-visible:border-[#f06455] focus-visible:ring-2 focus-visible:ring-[#f06455]/20"
+                >
+                  <span>+ Add preference</span>
+                  <ChevronDown
+                    className={`size-4 shrink-0 text-[#77716a] transition-transform ${
+                      preferenceOptionsOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {preferenceOptionsOpen && (
+                  <div className="motion-swap absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-72 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-2 shadow-[0_16px_34px_rgba(35,30,27,.12)]">
+                    <div className="flex items-center gap-2 border-b border-[#ebe7e1] p-1 pb-2">
+                      <input
+                        value={customPreference}
+                        onChange={(event) =>
+                          setCustomPreference(event.target.value)
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") return
+                          event.preventDefault()
+                          addPreference(customPreference)
+                        }}
+                        placeholder="Enter your own preference"
+                        className="h-9 min-w-0 flex-1 rounded-xl bg-[#f7f4ef] px-3 text-[12px] outline-none focus:ring-2 focus:ring-[#f06455]/20"
+                      />
+                      <button
+                        type="button"
+                        disabled={!customPreference.trim()}
+                        onClick={() => addPreference(customPreference)}
+                        className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#f75b56] text-white disabled:opacity-35"
+                        aria-label="Add custom preference"
+                      >
+                        <Plus className="size-4" />
+                      </button>
+                    </div>
+                    <div role="listbox" className="mt-1 space-y-0.5">
+                      {onboardingPreferenceOptions
+                        .filter(
+                          (label) =>
+                            !draft.preferences.some(
+                              (preference) => preference.label === label,
+                            ),
+                        )
+                        .map((label) => (
+                          <button
+                            key={label}
+                            type="button"
+                            role="option"
+                            aria-selected="false"
+                            onClick={() => addPreference(label)}
+                            className="block w-full rounded-xl px-3 py-2.5 text-left text-[12px] hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb]"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -1218,11 +1464,7 @@ function Preferences() {
               <div className="flex gap-2">
                 <Button
                   primary
-                  disabled={
-                    saving ||
-                    !draft?.departureCity.trim() ||
-                    (draft?.preferences.length || 0) < 3
-                  }
+                  disabled={saving || !draft?.departureCity.trim()}
                   onClick={() => void saveDraft()}
                 >
                   {saving ? "Saving…" : "Save"}
@@ -1232,6 +1474,9 @@ function Preferences() {
                     setEditing(false)
                     setDraft(null)
                     setSaveError("")
+                    setDepartureOptionsOpen(false)
+                    setPreferenceOptionsOpen(false)
+                    onEditingChange(false)
                   }}
                 >
                   Cancel
@@ -1257,6 +1502,7 @@ function Shell({
 }) {
   const desktop = viewport === "desktop"
   const [collapsed, setCollapsed] = useState(false)
+  const [rightSidebarEditing, setRightSidebarEditing] = useState(false)
   const { hasDraft } = useContext(DraftContext)
   const visibleHistoryState: HistoryState = hasDraft
     ? historyState === "history" || historyState === "active"
@@ -1269,11 +1515,15 @@ function Shell({
     <div className="product-ui min-h-[800px] bg-[#f7f6f4]">
       <Topbar mobile={viewport === "mobile"} go={go} />
       <div
-        className={`relative grid min-h-[calc(100vh-70px)] ${
+        className={`relative grid min-h-[calc(100vh-70px)] transition-[grid-template-columns] duration-300 ease-[cubic-bezier(.22,1,.36,1)] ${
           desktop
             ? collapsed
-              ? "grid-cols-[minmax(0,1fr)_310px]"
-              : "grid-cols-[320px_minmax(0,1fr)_310px]"
+              ? rightSidebarEditing
+                ? "grid-cols-[minmax(0,1fr)_480px]"
+                : "grid-cols-[minmax(0,1fr)_310px]"
+              : rightSidebarEditing
+                ? "grid-cols-[320px_minmax(0,1fr)_480px]"
+                : "grid-cols-[320px_minmax(0,1fr)_310px]"
             : "grid-cols-1"
         }`}
       >
@@ -1300,7 +1550,7 @@ function Shell({
         >
           {children}
         </main>
-        {desktop && <Preferences />}
+        {desktop && <Preferences onEditingChange={setRightSidebarEditing} />}
       </div>
     </div>
   )
@@ -1363,6 +1613,7 @@ function Home({
     hotelChecks,
     openHotelCheck,
     startNewHotelCheck,
+    tripContext,
     updateHotelCheck,
   } = useContext(DraftContext)
   const [inputValue, setInputValue] = useState("")
@@ -1641,9 +1892,15 @@ function Home({
     setAnalysisStage("hotel_information")
     setChatStage("analysis")
 
-    const profile = auth.currentUser
-      ? await loadTravelerProfile(auth.currentUser.uid)
-      : null
+    const currentRecord = hotelChecks.find(
+      (record) => record.id === (checkId || currentCheckId),
+    )
+    const profile =
+      currentRecord?.tripProfile ||
+      tripContext ||
+      (auth.currentUser
+        ? await loadTravelerProfile(auth.currentUser.uid)
+        : null)
     const preferences = (profile?.preferences || []).map((preference) => ({
       id:
         preference.label
@@ -3381,6 +3638,7 @@ export default function VisualLab() {
   })
   const [homeInstance, setHomeInstance] = useState(0)
   const [activeCheckId, setActiveCheckId] = useState<string | null>(null)
+  const [tripContext, setTripContext] = useState<TravelerProfile | null>(null)
   const [newHotelCheckActive, setNewHotelCheckActive] = useState(false)
 
   const navigate: Go = (id) => {
@@ -3393,7 +3651,7 @@ export default function VisualLab() {
   }
 
   const createDraft = (hotel: HotelOption) => {
-    const record = createHotelCheckRecord(hotel)
+    const record = createHotelCheckRecord(hotel, tripContext)
     setNewHotelCheckActive(false)
     setDraftHotel(hotel)
     setHotelChecks(upsertLocalHotelCheck(record))
@@ -3431,8 +3689,10 @@ export default function VisualLab() {
   }
 
   const openHotelCheck = (id: string) => {
+    const record = hotelChecks.find((item) => item.id === id)
     setNewHotelCheckActive(false)
     setActiveCheckId(id)
+    setTripContext(record?.tripProfile || null)
     setScreen("home")
     setHomeInstance((current) => current + 1)
   }
@@ -3499,7 +3759,9 @@ export default function VisualLab() {
         draftHotel: currentDraftHotel,
         hotelChecks,
         activeCheckId,
+        tripContext,
         newHotelCheckActive,
+        setTripContext,
         startNewHotelCheck,
         deleteHotelCheck,
         createDraft,

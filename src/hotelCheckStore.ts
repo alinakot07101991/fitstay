@@ -1,6 +1,7 @@
 import { collection, deleteDoc, doc, getDocs, setDoc } from "firebase/firestore"
 import { auth, database } from "./firebase"
 import type { HotelAnalysisResult } from "./hotelAnalysis"
+import type { TravelerProfile } from "./onboardingStore"
 import type { HotelAnalysisProgress } from "./runHotelAnalysis"
 
 export type StoredHotelAnalysisStatus = "queued" | "processing" | "completed" | "failed"
@@ -20,6 +21,7 @@ export type HotelCheckRecord = {
   analysisError?: string
   analysisErrorCode?: string
   analysisPreferenceLabels?: Record<string, string>
+  tripProfile?: TravelerProfile
   updatedAt: string
 }
 
@@ -53,6 +55,14 @@ function isHotelCheckRecord(value: unknown): value is HotelCheckRecord {
       ["queued", "processing", "completed", "failed"].includes(
         record.analysisStatus,
       )) &&
+    (record.tripProfile === undefined ||
+      (typeof record.tripProfile === "object" &&
+        record.tripProfile !== null &&
+        Number.isFinite(record.tripProfile.adults) &&
+        Array.isArray(record.tripProfile.childAges) &&
+        typeof record.tripProfile.travelsWithPets === "boolean" &&
+        typeof record.tripProfile.departureCity === "string" &&
+        Array.isArray(record.tripProfile.preferences))) &&
     typeof record.updatedAt === "string"
   )
 }
@@ -89,6 +99,7 @@ export function removeLocalHotelCheck(id: string) {
 
 export function createHotelCheckRecord(
   hotel: Pick<HotelCheckRecord, "place" | "hotel" | "placeId" | "city" | "country">,
+  tripProfile?: TravelerProfile | null,
 ): HotelCheckRecord {
   const normalizedHotel = hotel.hotel
     .trim()
@@ -104,6 +115,7 @@ export function createHotelCheckRecord(
     place: hotel.place,
     hotel: hotel.hotel,
     status: "draft",
+    tripProfile: tripProfile || undefined,
     updatedAt: new Date().toISOString(),
   }
 }
