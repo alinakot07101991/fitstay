@@ -385,7 +385,7 @@ function Field({ label, value }: { label: string value: string }) {
 
 function Topbar({ mobile, go }: { mobile: boolean go: Go }) {
   return (
-    <header className="flex h-[70px] items-center justify-between border-b border-[#e9e5df] px-6">
+    <header className="flex h-[70px] shrink-0 items-center justify-between border-b border-[#e9e5df] px-6">
       <div className="flex items-center gap-3">
         {mobile && (
           <button className="grid size-11 place-items-center rounded-full border">
@@ -713,8 +713,8 @@ function History({
   }
   return (
     <>
-      <aside className="flex min-h-[calc(100vh-70px)] flex-col border-r border-[#e7e3dd] bg-white/80 backdrop-blur-md">
-        <div className="flex h-16 items-center gap-1 px-6">
+      <aside className="flex h-full min-h-0 flex-col overflow-hidden border-r border-[#e7e3dd] bg-white/80 backdrop-blur-md">
+        <div className="flex h-16 shrink-0 items-center gap-1 px-6">
           <h2 className="flex-1 text-[14px] font-semibold">Search history</h2>
           <button
             onClick={() => setSearchOpen(true)}
@@ -731,7 +731,7 @@ function History({
             <Icon name="collapse" />
           </button>
         </div>
-        <nav className="space-y-1 border-b border-[#e7e3dd] px-4 pb-5">
+        <nav className="shrink-0 space-y-1 border-b border-[#e7e3dd] px-4 pb-5">
           <button
             onClick={startNewHotelCheck}
             className="sidebar-action sidebar-action--check group flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[12px] font-semibold transition-colors duration-200 hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb] focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
@@ -754,7 +754,7 @@ function History({
         {visibleHistory.length === 0 ? (
           <EmptyHistory />
         ) : (
-          <div className="space-y-1 px-4 pb-6 pt-5">
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 pb-6 pt-5">
             {visibleHistory.map((entry) => {
               const [place, hotel, date, image, status, recordId] = entry
               return (
@@ -1061,8 +1061,8 @@ function Preferences({
     : ""
 
   return (
-    <aside className="min-h-[calc(100vh-70px)] overflow-y-auto border-l border-[#e7e3dd] bg-white/80 px-6 pb-6 backdrop-blur-md">
-      <div className="flex h-16 items-center justify-between gap-3">
+    <aside className="flex h-full min-h-0 flex-col overflow-hidden border-l border-[#e7e3dd] bg-white/80 px-6 backdrop-blur-md">
+      <div className="flex h-16 shrink-0 items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold">Your preferences</h2>
         {!editing && baseProfile && (
           <button
@@ -1076,415 +1076,421 @@ function Preferences({
         )}
       </div>
 
-      {!displayed ? (
-        <p className="mt-5 text-[12px] leading-relaxed text-[#7e7770]">
-          Your onboarding preferences will appear here
-        </p>
-      ) : (
-        <>
-          <p className="mt-2 text-[12px] leading-relaxed text-[#7e7770]">
-            Changes apply to this chat and carry into your next new check
+      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+        {!displayed ? (
+          <p className="mt-5 text-[12px] leading-relaxed text-[#7e7770]">
+            Your onboarding preferences will appear here
           </p>
+        ) : (
+          <>
+            <p className="mt-2 text-[12px] leading-relaxed text-[#7e7770]">
+              Changes apply to this chat and carry into your next new check
+            </p>
 
-          <div className="mt-4 border-b border-[#ebe7e1] py-4">
-            <div className="flex items-start gap-3">
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
-                <Icon name="users" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] text-[#8f8880]">Travelers</p>
-                <p className="mt-1 text-[12px] font-semibold leading-snug">
-                  {travelers}
-                </p>
-                {editing && draft && (
-                  <div className="mt-3 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[12px]">Adults</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          aria-label="Decrease adults"
-                          disabled={draft.adults <= 1}
-                          onClick={() =>
-                            updateDraft({
-                              adults: Math.max(1, draft.adults - 1),
-                            })
-                          }
-                          className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
-                        >
-                          −
-                        </button>
-                        <span className="w-5 text-center text-[12px] tabular-nums">
-                          {draft.adults}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label="Increase adults"
-                          onClick={() =>
-                            updateDraft({ adults: draft.adults + 1 })
-                          }
-                          className="grid size-8 place-items-center rounded-full border border-[#d8d3cc]"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                    {draft.childAges.map((age, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between gap-2"
-                      >
-                        <div className="flex items-center gap-1">
-                          <span className="text-[12px] text-[#8f8880]">
-                            Child {index + 1}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label={`Remove child ${index + 1}`}
-                            title="Remove child"
-                            onClick={() =>
-                              updateDraft({
-                                childAges: draft.childAges.filter(
-                                  (_, childIndex) => childIndex !== index,
-                                ),
-                              })
-                            }
-                            className="grid size-7 place-items-center rounded-lg text-[#8f8880] hover:text-[#d95448]"
-                          >
-                            <Icon name="trash" size={14} />
-                          </button>
-                        </div>
+            <div className="mt-4 border-b border-[#ebe7e1] py-4">
+              <div className="flex items-start gap-3">
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
+                  <Icon name="users" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] text-[#8f8880]">Travelers</p>
+                  <p className="mt-1 text-[12px] font-semibold leading-snug">
+                    {travelers}
+                  </p>
+                  {editing && draft && (
+                    <div className="mt-3 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[12px]">Adults</span>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            aria-label={`Decrease age for child ${index + 1}`}
-                            disabled={age <= 0}
+                            aria-label="Decrease adults"
+                            disabled={draft.adults <= 1}
                             onClick={() =>
                               updateDraft({
-                                childAges: draft.childAges.map(
-                                  (value, childIndex) =>
-                                    childIndex === index
-                                      ? Math.max(0, value - 1)
-                                      : value,
-                                ),
+                                adults: Math.max(1, draft.adults - 1),
                               })
                             }
                             className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
                           >
                             −
                           </button>
-                          <span className="w-[72px] text-center text-[11px] tabular-nums">
-                            {age === 0
-                              ? "Under 1 year"
-                              : `${age} ${age === 1 ? "year" : "years"}`}
+                          <span className="w-5 text-center text-[12px] tabular-nums">
+                            {draft.adults}
                           </span>
                           <button
                             type="button"
-                            aria-label={`Increase age for child ${index + 1}`}
-                            disabled={age >= 17}
+                            aria-label="Increase adults"
                             onClick={() =>
-                              updateDraft({
-                                childAges: draft.childAges.map(
-                                  (value, childIndex) =>
-                                    childIndex === index
-                                      ? Math.min(17, value + 1)
-                                      : value,
-                                ),
-                              })
+                              updateDraft({ adults: draft.adults + 1 })
                             }
-                            className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
+                            className="grid size-8 place-items-center rounded-full border border-[#d8d3cc]"
                           >
                             +
                           </button>
                         </div>
                       </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateDraft({ childAges: [...draft.childAges, 0] })
-                      }
-                      className="text-[12px] font-semibold text-[#e55e51]"
-                    >
-                      + Add child
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3 border-b border-[#ebe7e1] py-4">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
-              <Icon name="dog" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[12px] text-[#8f8880]">Pets</p>
-              <p className="mt-1 text-[12px] font-semibold leading-snug">
-                {displayed.travelsWithPets ? "Traveling with a pet" : "No pets"}
-              </p>
-            </div>
-            {editing && draft && (
-              <button
-                type="button"
-                role="switch"
-                aria-checked={draft.travelsWithPets}
-                onClick={() =>
-                  updateDraft({ travelsWithPets: !draft.travelsWithPets })
-                }
-                className={`relative h-6 w-[41px] shrink-0 rounded-full transition-colors ${
-                  draft.travelsWithPets ? "bg-[#f75b56]" : "bg-[#d8d6d2]"
-                }`}
-              >
-                <span
-                  className={`absolute left-1 top-1 size-4 rounded-full bg-white shadow-sm transition-transform ${
-                    draft.travelsWithPets
-                      ? "translate-x-[17px]"
-                      : "translate-x-0"
-                  }`}
-                />
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-start gap-3 border-b border-[#ebe7e1] py-4">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
-              <Icon name="plane" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[12px] text-[#8f8880]">Departure city</p>
-              {editing && draft ? (
-                <div ref={departurePickerRef} className="relative mt-2">
-                  <input
-                    value={draft.departureCity}
-                    onChange={(event) => {
-                      updateDraft({ departureCity: event.target.value })
-                      setDepartureOptionsOpen(Boolean(event.target.value))
-                    }}
-                    onFocus={() =>
-                      setDepartureOptionsOpen(Boolean(draft.departureCity))
-                    }
-                    placeholder="Enter a city or airport"
-                    role="combobox"
-                    aria-autocomplete="list"
-                    aria-expanded={departureOptionsOpen}
-                    aria-controls="departure-city-options"
-                    className="h-10 w-full rounded-xl border border-[#d8d3cc] bg-white px-3 pr-9 text-[12px] outline-none focus:border-[#f06455]"
-                  />
-                  <Search className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#8f8880]" />
-                  {departureOptionsOpen && normalizedDepartureQuery && (
-                    <div
-                      id="departure-city-options"
-                      role="listbox"
-                      className="motion-swap absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-64 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-1.5 shadow-[0_16px_34px_rgba(35,30,27,.12)]"
-                    >
-                      {departureSuggestions.length ? (
-                        departureSuggestions.map((option) => (
-                          <button
-                            key={`${option.city}-${option.codes}`}
-                            type="button"
-                            role="option"
-                            aria-selected={
-                              draft.departureCity === airportCityValue(option)
-                            }
-                            onClick={() => {
-                              updateDraft({
-                                departureCity: airportCityValue(option),
-                              })
-                              setDepartureOptionsOpen(false)
-                            }}
-                            className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb]"
-                          >
-                            <span className="min-w-0">
-                              <span className="block truncate text-[12px] font-semibold">
-                                {option.city}
-                              </span>
-                              <span className="mt-0.5 block truncate text-[11px] text-[#8f8880]">
-                                {option.country}
-                              </span>
-                            </span>
-                            <span className="shrink-0 rounded-full bg-[#f3f0eb] px-2 py-1 text-[10px] text-[#6f6962]">
-                              {option.codes}
-                            </span>
-                          </button>
-                        ))
-                      ) : (
-                        <p className="px-3 py-3 text-[12px] text-[#8f8880]">
-                          No airport cities found
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="mt-1 text-[12px] font-semibold leading-snug">
-                  {displayed.departureCity || "Not set"}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-[22px] bg-[#f3f0eb] p-4">
-            <p className="text-[12px] font-semibold">Hotel preferences</p>
-            <div className="mt-3 space-y-2">
-              {displayed.preferences.map((preference) => (
-                <div
-                  key={preference.label}
-                  className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2"
-                >
-                  <span className="min-w-0 truncate text-[12px]">
-                    {preference.label}
-                  </span>
-                  {editing && draft ? (
-                    <div className="flex shrink-0 items-center gap-1">
-                      {(["important", "critical"] as const).map((priority) => (
-                        <button
-                          key={priority}
-                          type="button"
-                          aria-label={`Set ${preference.label} as ${priority}`}
-                          onClick={() =>
-                            updateDraft({
-                              preferences: draft.preferences.map((item) =>
-                                item.label === preference.label
-                                  ? { ...item, priority }
-                                  : item,
-                              ),
-                            })
-                          }
-                          className={`rounded-full px-2 py-1 text-[10px] capitalize ${
-                            preference.priority === priority
-                              ? "bg-[#f75b56] text-white"
-                              : "bg-[#f3f0eb] text-[#77716a]"
-                          }`}
+                      {draft.childAges.map((age, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between gap-2"
                         >
-                          {priority}
-                        </button>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[12px] text-[#8f8880]">
+                              Child {index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`Remove child ${index + 1}`}
+                              title="Remove child"
+                              onClick={() =>
+                                updateDraft({
+                                  childAges: draft.childAges.filter(
+                                    (_, childIndex) => childIndex !== index,
+                                  ),
+                                })
+                              }
+                              className="grid size-7 place-items-center rounded-lg text-[#8f8880] hover:text-[#d95448]"
+                            >
+                              <Icon name="trash" size={14} />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              aria-label={`Decrease age for child ${index + 1}`}
+                              disabled={age <= 0}
+                              onClick={() =>
+                                updateDraft({
+                                  childAges: draft.childAges.map(
+                                    (value, childIndex) =>
+                                      childIndex === index
+                                        ? Math.max(0, value - 1)
+                                        : value,
+                                  ),
+                                })
+                              }
+                              className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
+                            >
+                              −
+                            </button>
+                            <span className="w-[72px] text-center text-[11px] tabular-nums">
+                              {age === 0
+                                ? "Under 1 year"
+                                : `${age} ${age === 1 ? "year" : "years"}`}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`Increase age for child ${index + 1}`}
+                              disabled={age >= 17}
+                              onClick={() =>
+                                updateDraft({
+                                  childAges: draft.childAges.map(
+                                    (value, childIndex) =>
+                                      childIndex === index
+                                        ? Math.min(17, value + 1)
+                                        : value,
+                                  ),
+                                })
+                              }
+                              className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
                       ))}
                       <button
                         type="button"
-                        aria-label={`Remove ${preference.label}`}
                         onClick={() =>
-                          updateDraft({
-                            preferences: draft.preferences.filter(
-                              (item) => item.label !== preference.label,
-                            ),
-                          })
+                          updateDraft({ childAges: [...draft.childAges, 0] })
                         }
-                        className="ml-1 grid size-6 place-items-center rounded-full text-[#8f8880] hover:text-[#d95448]"
+                        className="text-[12px] font-semibold text-[#e55e51]"
                       >
-                        ×
+                        + Add child
                       </button>
                     </div>
-                  ) : (
-                    <span className="shrink-0 text-[10px] capitalize text-[#8f8880]">
-                      {preference.priority}
-                    </span>
                   )}
                 </div>
-              ))}
+              </div>
             </div>
-            {editing && draft && (
-              <div ref={preferencePickerRef} className="relative mt-3">
+
+            <div className="flex items-start gap-3 border-b border-[#ebe7e1] py-4">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
+                <Icon name="dog" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] text-[#8f8880]">Pets</p>
+                <p className="mt-1 text-[12px] font-semibold leading-snug">
+                  {displayed.travelsWithPets
+                    ? "Traveling with a pet"
+                    : "No pets"}
+                </p>
+              </div>
+              {editing && draft && (
                 <button
                   type="button"
-                  aria-haspopup="listbox"
-                  aria-expanded={preferenceOptionsOpen}
+                  role="switch"
+                  aria-checked={draft.travelsWithPets}
                   onClick={() =>
-                    setPreferenceOptionsOpen((current) => !current)
+                    updateDraft({ travelsWithPets: !draft.travelsWithPets })
                   }
-                  className="flex h-10 w-full items-center justify-between gap-3 rounded-xl border border-[#d8d3cc] bg-white px-3 text-left text-[12px] outline-none focus-visible:border-[#f06455] focus-visible:ring-2 focus-visible:ring-[#f06455]/20"
+                  className={`relative h-6 w-[41px] shrink-0 rounded-full transition-colors ${
+                    draft.travelsWithPets ? "bg-[#f75b56]" : "bg-[#d8d6d2]"
+                  }`}
                 >
-                  <span>+ Add preference</span>
-                  <ChevronDown
-                    className={`size-4 shrink-0 text-[#77716a] transition-transform ${
-                      preferenceOptionsOpen ? "rotate-180" : ""
+                  <span
+                    className={`absolute left-1 top-1 size-4 rounded-full bg-white shadow-sm transition-transform ${
+                      draft.travelsWithPets
+                        ? "translate-x-[17px]"
+                        : "translate-x-0"
                     }`}
                   />
                 </button>
-                {preferenceOptionsOpen && (
-                  <div className="motion-swap absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-72 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-2 shadow-[0_16px_34px_rgba(35,30,27,.12)]">
-                    <div className="flex items-center gap-2 border-b border-[#ebe7e1] p-1 pb-2">
-                      <input
-                        value={customPreference}
-                        onChange={(event) =>
-                          setCustomPreference(event.target.value)
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter") return
-                          event.preventDefault()
-                          addPreference(customPreference)
-                        }}
-                        placeholder="Enter your own preference"
-                        className="h-9 min-w-0 flex-1 rounded-xl bg-[#f7f4ef] px-3 text-[12px] outline-none focus:ring-2 focus:ring-[#f06455]/20"
-                      />
-                      <button
-                        type="button"
-                        disabled={!customPreference.trim()}
-                        onClick={() => addPreference(customPreference)}
-                        className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#f75b56] text-white disabled:opacity-35"
-                        aria-label="Add custom preference"
+              )}
+            </div>
+
+            <div className="flex items-start gap-3 border-b border-[#ebe7e1] py-4">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f3f0eb] text-[#2f2b28]">
+                <Icon name="plane" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] text-[#8f8880]">Departure city</p>
+                {editing && draft ? (
+                  <div ref={departurePickerRef} className="relative mt-2">
+                    <input
+                      value={draft.departureCity}
+                      onChange={(event) => {
+                        updateDraft({ departureCity: event.target.value })
+                        setDepartureOptionsOpen(Boolean(event.target.value))
+                      }}
+                      onFocus={() =>
+                        setDepartureOptionsOpen(Boolean(draft.departureCity))
+                      }
+                      placeholder="Enter a city or airport"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      aria-expanded={departureOptionsOpen}
+                      aria-controls="departure-city-options"
+                      className="h-10 w-full rounded-xl border border-[#d8d3cc] bg-white px-3 pr-9 text-[12px] outline-none focus:border-[#f06455]"
+                    />
+                    <Search className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#8f8880]" />
+                    {departureOptionsOpen && normalizedDepartureQuery && (
+                      <div
+                        id="departure-city-options"
+                        role="listbox"
+                        className="motion-swap absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-64 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-1.5 shadow-[0_16px_34px_rgba(35,30,27,.12)]"
                       >
-                        <Plus className="size-4" />
-                      </button>
-                    </div>
-                    <div role="listbox" className="mt-1 space-y-0.5">
-                      {onboardingPreferenceOptions
-                        .filter(
-                          (label) =>
-                            !draft.preferences.some(
-                              (preference) => preference.label === label,
-                            ),
-                        )
-                        .map((label) => (
-                          <button
-                            key={label}
-                            type="button"
-                            role="option"
-                            aria-selected="false"
-                            onClick={() => addPreference(label)}
-                            className="block w-full rounded-xl px-3 py-2.5 text-left text-[12px] hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb]"
-                          >
-                            {label}
-                          </button>
-                        ))}
-                    </div>
+                        {departureSuggestions.length ? (
+                          departureSuggestions.map((option) => (
+                            <button
+                              key={`${option.city}-${option.codes}`}
+                              type="button"
+                              role="option"
+                              aria-selected={
+                                draft.departureCity === airportCityValue(option)
+                              }
+                              onClick={() => {
+                                updateDraft({
+                                  departureCity: airportCityValue(option),
+                                })
+                                setDepartureOptionsOpen(false)
+                              }}
+                              className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb]"
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-[12px] font-semibold">
+                                  {option.city}
+                                </span>
+                                <span className="mt-0.5 block truncate text-[11px] text-[#8f8880]">
+                                  {option.country}
+                                </span>
+                              </span>
+                              <span className="shrink-0 rounded-full bg-[#f3f0eb] px-2 py-1 text-[10px] text-[#6f6962]">
+                                {option.codes}
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-3 py-3 text-[12px] text-[#8f8880]">
+                            No airport cities found
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <p className="mt-1 text-[12px] font-semibold leading-snug">
+                    {displayed.departureCity || "Not set"}
+                  </p>
                 )}
               </div>
-            )}
-          </div>
-
-          {editing && (
-            <div className="mt-4">
-              {saveError && (
-                <p role="alert" className="mb-3 text-[12px] text-[#b2473e]">
-                  {saveError}
-                </p>
-              )}
-              <div className="flex gap-2">
-                <Button
-                  primary
-                  disabled={saving || !draft?.departureCity.trim()}
-                  onClick={() => void saveDraft()}
-                >
-                  {saving ? "Saving…" : "Save"}
-                </Button>
-                <Button
-                  onClick={() => {
-                    setEditing(false)
-                    setDraft(null)
-                    setSaveError("")
-                    setDepartureOptionsOpen(false)
-                    setPreferenceOptionsOpen(false)
-                    onEditingChange(false)
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
             </div>
+
+            <div className="mt-4 rounded-[22px] bg-[#f3f0eb] p-4">
+              <p className="text-[12px] font-semibold">Hotel preferences</p>
+              <div className="mt-3 space-y-2">
+                {displayed.preferences.map((preference) => (
+                  <div
+                    key={preference.label}
+                    className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2"
+                  >
+                    <span className="min-w-0 truncate text-[12px]">
+                      {preference.label}
+                    </span>
+                    {editing && draft ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        {(["important", "critical"] as const).map(
+                          (priority) => (
+                            <button
+                              key={priority}
+                              type="button"
+                              aria-label={`Set ${preference.label} as ${priority}`}
+                              onClick={() =>
+                                updateDraft({
+                                  preferences: draft.preferences.map((item) =>
+                                    item.label === preference.label
+                                      ? { ...item, priority }
+                                      : item,
+                                  ),
+                                })
+                              }
+                              className={`rounded-full px-2 py-1 text-[10px] capitalize ${
+                                preference.priority === priority
+                                  ? "bg-[#f75b56] text-white"
+                                  : "bg-[#f3f0eb] text-[#77716a]"
+                              }`}
+                            >
+                              {priority}
+                            </button>
+                          ),
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${preference.label}`}
+                          onClick={() =>
+                            updateDraft({
+                              preferences: draft.preferences.filter(
+                                (item) => item.label !== preference.label,
+                              ),
+                            })
+                          }
+                          className="ml-1 grid size-6 place-items-center rounded-full text-[#8f8880] hover:text-[#d95448]"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="shrink-0 text-[10px] capitalize text-[#8f8880]">
+                        {preference.priority}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {editing && draft && (
+                <div ref={preferencePickerRef} className="relative mt-3">
+                  <button
+                    type="button"
+                    aria-haspopup="listbox"
+                    aria-expanded={preferenceOptionsOpen}
+                    onClick={() =>
+                      setPreferenceOptionsOpen((current) => !current)
+                    }
+                    className="flex h-10 w-full items-center justify-between gap-3 rounded-xl border border-[#d8d3cc] bg-white px-3 text-left text-[12px] outline-none focus-visible:border-[#f06455] focus-visible:ring-2 focus-visible:ring-[#f06455]/20"
+                  >
+                    <span>+ Add preference</span>
+                    <ChevronDown
+                      className={`size-4 shrink-0 text-[#77716a] transition-transform ${
+                        preferenceOptionsOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {preferenceOptionsOpen && (
+                    <div className="motion-swap absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-72 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-2 shadow-[0_16px_34px_rgba(35,30,27,.12)]">
+                      <div className="flex items-center gap-2 border-b border-[#ebe7e1] p-1 pb-2">
+                        <input
+                          value={customPreference}
+                          onChange={(event) =>
+                            setCustomPreference(event.target.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") return
+                            event.preventDefault()
+                            addPreference(customPreference)
+                          }}
+                          placeholder="Enter your own preference"
+                          className="h-9 min-w-0 flex-1 rounded-xl bg-[#f7f4ef] px-3 text-[12px] outline-none focus:ring-2 focus:ring-[#f06455]/20"
+                        />
+                        <button
+                          type="button"
+                          disabled={!customPreference.trim()}
+                          onClick={() => addPreference(customPreference)}
+                          className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#f75b56] text-white disabled:opacity-35"
+                          aria-label="Add custom preference"
+                        >
+                          <Plus className="size-4" />
+                        </button>
+                      </div>
+                      <div role="listbox" className="mt-1 space-y-0.5">
+                        {onboardingPreferenceOptions
+                          .filter(
+                            (label) =>
+                              !draft.preferences.some(
+                                (preference) => preference.label === label,
+                              ),
+                          )
+                          .map((label) => (
+                            <button
+                              key={label}
+                              type="button"
+                              role="option"
+                              aria-selected="false"
+                              onClick={() => addPreference(label)}
+                              className="block w-full rounded-xl px-3 py-2.5 text-left text-[12px] hover:bg-[#f3f0eb] focus:outline-none focus-visible:bg-[#f3f0eb]"
+                            >
+                              {label}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {editing && (
+        <div className="-mx-6 shrink-0 border-t border-[#e7e3dd] bg-white/95 px-6 py-4 backdrop-blur-md">
+          {saveError && (
+            <p role="alert" className="mb-3 text-[12px] text-[#b2473e]">
+              {saveError}
+            </p>
           )}
-        </>
+          <div className="flex gap-2">
+            <Button
+              primary
+              disabled={saving || !draft?.departureCity.trim()}
+              onClick={() => void saveDraft()}
+            >
+              {saving ? "Saving…" : "Save"}
+            </Button>
+            <Button
+              onClick={() => {
+                setEditing(false)
+                setDraft(null)
+                setSaveError("")
+                setDepartureOptionsOpen(false)
+                setPreferenceOptionsOpen(false)
+                onEditingChange(false)
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
       )}
     </aside>
   )
@@ -1512,10 +1518,10 @@ function Shell({
         : historyState
     : historyState
   return (
-    <div className="product-ui min-h-[800px] bg-[#f7f6f4]">
+    <div className="product-ui flex h-screen flex-col overflow-hidden bg-[#f7f6f4]">
       <Topbar mobile={viewport === "mobile"} go={go} />
       <div
-        className={`relative grid min-h-[calc(100vh-70px)] transition-[grid-template-columns] duration-300 ease-[cubic-bezier(.22,1,.36,1)] ${
+        className={`relative grid min-h-0 flex-1 overflow-hidden transition-[grid-template-columns] duration-300 ease-[cubic-bezier(.22,1,.36,1)] ${
           desktop
             ? collapsed
               ? rightSidebarEditing
@@ -1544,7 +1550,7 @@ function Shell({
           </button>
         )}
         <main
-          className={`min-w-0 p-4 md:p-6 ${
+          className={`min-h-0 min-w-0 overflow-y-auto p-4 md:p-6 ${
             desktop && collapsed ? "pl-24" : ""
           }`}
         >
