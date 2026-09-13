@@ -6,16 +6,24 @@ import {
   useRef,
   useState,
 } from "react"
-import { onAuthStateChanged } from "firebase/auth"
+import {
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signOut,
+} from "firebase/auth"
 import {
   Bookmark,
+  Camera,
   ChevronDown,
   ChevronRight,
   CircleHelp,
   Coffee,
+  CreditCard,
   Dog,
   Heart,
   Hotel,
+  KeyRound,
+  LogOut,
   Menu,
   Mic,
   LoaderCircle,
@@ -24,6 +32,7 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
   Square,
   Sparkles,
   Trash2,
@@ -48,6 +57,7 @@ import { useVoiceTranscription } from "./useVoiceTranscription"
 import {
   completeOnboarding,
   loadTravelerProfile,
+  saveTravelerProfile,
   type TravelerProfile,
 } from "./onboardingStore"
 import {
@@ -108,9 +118,11 @@ const DraftContext = createContext<{
   draftHotel: HotelOption | null
   hotelChecks: HotelCheckRecord[]
   activeCheckId: string | null
+  globalProfile: TravelerProfile | null
   tripContext: TravelerProfile | null
   newHotelCheckActive: boolean
   setTripContext: (profile: TravelerProfile) => void
+  setGlobalProfile: (profile: TravelerProfile) => void
   startNewHotelCheck: () => void
   deleteHotelCheck: (id: string) => void
   createDraft: (hotel: HotelOption) => HotelCheckRecord
@@ -125,9 +137,11 @@ const DraftContext = createContext<{
   draftHotel: null,
   hotelChecks: [],
   activeCheckId: null,
+  globalProfile: null,
   tripContext: null,
   newHotelCheckActive: false,
   setTripContext: () => {},
+  setGlobalProfile: () => {},
   startNewHotelCheck: () => {},
   deleteHotelCheck: () => {},
   createDraft: () => createHotelCheckRecord(defaultDraftHotel),
@@ -279,7 +293,7 @@ const groups: Array<{
       ["alternative-result", "Alternative result", "Verified match"],
       ["profile", "Profile", "Travel defaults"],
       ["saved", "Saved hotels", "Saved results"],
-      ["settings", "Settings", "Account settings"],
+      ["settings", "Account & credits", "Security and payments"],
       ["help", "Help & Support", "Support"],
     ],
   },
@@ -384,6 +398,33 @@ function Field({ label, value }: { label: string value: string }) {
 }
 
 function Topbar({ mobile, go }: { mobile: boolean go: Go }) {
+  const { globalProfile } = useContext(DraftContext)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const initials =
+    globalProfile?.name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toLocaleUpperCase())
+      .join("") || "U"
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const closeMenu = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false)
+    }
+    document.addEventListener("pointerdown", closeMenu)
+    window.addEventListener("keydown", closeOnEscape)
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu)
+      window.removeEventListener("keydown", closeOnEscape)
+    }
+  }, [menuOpen])
+
   return (
     <header className="flex h-[70px] shrink-0 items-center justify-between border-b border-[#e9e5df] px-6">
       <div className="flex items-center gap-3">
@@ -408,14 +449,70 @@ function Topbar({ mobile, go }: { mobile: boolean go: Go }) {
         >
           <b className="text-[#e85e51]">2</b> free checks left
         </button>
-        <button
-          data-preserve-fill
-          onClick={() => go("settings")}
-          className="grid size-10 place-items-center rounded-full bg-[#ed8b72] font-bold text-white transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
-          aria-label="Open user settings"
-        >
-          O
-        </button>
+        <div ref={menuRef} className="relative">
+          <button
+            data-preserve-fill
+            onClick={() => setMenuOpen((current) => !current)}
+            className="grid size-10 overflow-hidden place-items-center rounded-full bg-[#ed8b72] font-bold text-white transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+            aria-label="Open user menu"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            {globalProfile?.avatarDataUrl ? (
+              <img
+                src={globalProfile.avatarDataUrl}
+                alt=""
+                className="size-full object-cover"
+              />
+            ) : (
+              initials
+            )}
+          </button>
+          {menuOpen && (
+            <div
+              role="menu"
+              className="motion-swap absolute right-0 top-[calc(100%+10px)] z-50 w-[240px] overflow-hidden rounded-[22px] border border-[#e2ddd6] bg-white py-2 text-[#2f2b28] shadow-[0_18px_44px_rgba(35,30,27,.16)]"
+            >
+              <button
+                role="menuitem"
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  go("profile")
+                }}
+                className="flex min-h-12 w-full items-center gap-3 px-5 text-left text-[14px] hover:bg-[#f7f4ef]"
+              >
+                <Users className="size-4" />
+                Profile
+              </button>
+              <button
+                role="menuitem"
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  go("settings")
+                }}
+                className="flex min-h-12 w-full items-center gap-3 px-5 text-left text-[14px] hover:bg-[#f7f4ef]"
+              >
+                <CreditCard className="size-4" />
+                Account &amp; credits
+              </button>
+              <div className="my-2 border-t border-[#ebe7e1]" />
+              <button
+                role="menuitem"
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  void signOut(auth).finally(() => window.location.assign("/"))
+                }}
+                className="flex min-h-12 w-full items-center gap-3 px-5 text-left text-[14px] text-[#f0524d] hover:bg-[#fff4f0]"
+              >
+                <LogOut className="size-4" />
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   )
@@ -912,6 +1009,7 @@ function airportCityValue(option: AirportCity) {
 function editableProfileSignature(profile: TravelerProfile) {
   return JSON.stringify({
     name: profile.name,
+    avatarDataUrl: profile.avatarDataUrl || "",
     adults: profile.adults,
     childAges: profile.childAges,
     travelsWithPets: profile.travelsWithPets,
@@ -927,6 +1025,7 @@ function Preferences({
 }) {
   const {
     activeCheckId,
+    globalProfile,
     hotelChecks,
     newHotelCheckActive,
     setTripContext,
@@ -986,7 +1085,8 @@ function Preferences({
     : newHotelCheckActive
       ? null
       : hotelChecks.find((record) => record.status === "draft")
-  const baseProfile = tripContext || activeRecord?.tripProfile || profile
+  const baseProfile =
+    tripContext || activeRecord?.tripProfile || globalProfile || profile
 
   const beginEditing = () => {
     if (!baseProfile) return
@@ -1518,11 +1618,13 @@ function Shell({
   go,
   children,
   historyState = "history",
+  showPreferences = true,
 }: {
   viewport: Viewport
   go: Go
   children: React.ReactNode
   historyState?: HistoryState
+  showPreferences?: boolean
 }) {
   const desktop = viewport === "desktop"
   const [collapsed, setCollapsed] = useState(false)
@@ -1541,13 +1643,17 @@ function Shell({
       <div
         className={`relative grid min-h-0 flex-1 overflow-hidden transition-[grid-template-columns] duration-300 ease-[cubic-bezier(.22,1,.36,1)] ${
           desktop
-            ? collapsed
-              ? rightSidebarEditing
-                ? "grid-cols-[minmax(0,1fr)_480px]"
-                : "grid-cols-[minmax(0,1fr)_310px]"
-              : rightSidebarEditing
-                ? "grid-cols-[320px_minmax(0,1fr)_480px]"
-                : "grid-cols-[320px_minmax(0,1fr)_310px]"
+            ? showPreferences
+              ? collapsed
+                ? rightSidebarEditing
+                  ? "grid-cols-[minmax(0,1fr)_480px]"
+                  : "grid-cols-[minmax(0,1fr)_310px]"
+                : rightSidebarEditing
+                  ? "grid-cols-[320px_minmax(0,1fr)_480px]"
+                  : "grid-cols-[320px_minmax(0,1fr)_310px]"
+              : collapsed
+                ? "grid-cols-1"
+                : "grid-cols-[320px_minmax(0,1fr)]"
             : "grid-cols-1"
         }`}
       >
@@ -1574,7 +1680,9 @@ function Shell({
         >
           {children}
         </main>
-        {desktop && <Preferences onEditingChange={setRightSidebarEditing} />}
+        {desktop && showPreferences && (
+          <Preferences onEditingChange={setRightSidebarEditing} />
+        )}
       </div>
     </div>
   )
@@ -2279,6 +2387,17 @@ function Home({
                     hotelName={identifiedHotel.hotel}
                     result={analysisResult}
                     preferenceLabels={analysisPreferenceLabels}
+                    saved={Boolean(
+                      hotelChecks.find((record) => record.id === currentCheckId)
+                        ?.saved,
+                    )}
+                    onSave={() => {
+                      if (!currentCheckId) return
+                      updateHotelCheck(currentCheckId, {
+                        saved: true,
+                        savedAt: new Date().toISOString(),
+                      })
+                    }}
                     onCompare={() => go("alternative")}
                     onRetry={() => void retryAnalysis()}
                   />
@@ -3435,48 +3554,760 @@ function Alternative({
     </Shell>
   )
 }
+async function avatarDataUrlFromFile(file: File) {
+  if (!file.type.startsWith("image/"))
+    throw new Error("Choose a JPG, PNG, or WebP image")
+  if (file.size > 8 * 1024 * 1024)
+    throw new Error("Choose an image smaller than 8 MB")
+
+  const sourceUrl = URL.createObjectURL(file)
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const nextImage = new Image()
+      nextImage.onload = () => resolve(nextImage)
+      nextImage.onerror = () =>
+        reject(new Error("This image could not be read"))
+      nextImage.src = sourceUrl
+    })
+    const canvas = document.createElement("canvas")
+    canvas.width = 256
+    canvas.height = 256
+    const context = canvas.getContext("2d")
+    if (!context) throw new Error("This image could not be prepared")
+    const cropSize = Math.min(image.naturalWidth, image.naturalHeight)
+    const sourceX = (image.naturalWidth - cropSize) / 2
+    const sourceY = (image.naturalHeight - cropSize) / 2
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      256,
+      256,
+    )
+    return canvas.toDataURL("image/jpeg", 0.86)
+  } finally {
+    URL.revokeObjectURL(sourceUrl)
+  }
+}
+
 function Profile({ viewport, go }: { viewport: Viewport go: Go }) {
-  return (
-    <Shell viewport={viewport} go={go}>
-      <div className="mx-auto max-w-[800px]">
-        <h1 className="text-[30px] font-bold">Your travel defaults</h1>
-        <div
-          className={`mt-6 grid gap-4 ${
-            viewport === "mobile" ? "grid-cols-1" : "grid-cols-2"
-          }`}
-        >
+  const { globalProfile, setGlobalProfile } = useContext(DraftContext)
+  const [draft, setDraft] = useState<TravelerProfile | null>(globalProfile)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState("")
+  const [error, setError] = useState("")
+  const [departureOpen, setDepartureOpen] = useState(false)
+  const [preferenceOpen, setPreferenceOpen] = useState(false)
+  const [customPreference, setCustomPreference] = useState("")
+  const baselineRef = useRef(
+    globalProfile ? editableProfileSignature(globalProfile) : "",
+  )
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const departureRef = useRef<HTMLDivElement>(null)
+  const preferenceRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!globalProfile) return
+    baselineRef.current = editableProfileSignature(globalProfile)
+    setDraft({
+      ...globalProfile,
+      childAges: [...globalProfile.childAges],
+      preferences: globalProfile.preferences.map((preference) => ({
+        ...preference,
+      })),
+    })
+  }, [globalProfile])
+
+  useEffect(() => {
+    const closePopovers = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!departureRef.current?.contains(target)) setDepartureOpen(false)
+      if (!preferenceRef.current?.contains(target)) setPreferenceOpen(false)
+    }
+    document.addEventListener("pointerdown", closePopovers)
+    return () => document.removeEventListener("pointerdown", closePopovers)
+  }, [])
+
+  if (!draft)
+    return (
+      <Shell viewport={viewport} go={go} showPreferences={false}>
+        <div className="mx-auto max-w-[820px]">
           <Card>
-            <h2 className="font-bold">Usual travelers</h2>
-            <div className="mt-5 space-y-4">
-              <Field label="Adults" value="2" />
-              <Field label="Children" value="1 · age 7" />
-              <Field label="Pets" value="Dog" />
+            <p className="text-[14px] text-[#777169]">Loading your profile…</p>
+          </Card>
+        </div>
+      </Shell>
+    )
+
+  const updateDraft = (changes: Partial<TravelerProfile>) => {
+    setMessage("")
+    setError("")
+    setDraft((current) => (current ? { ...current, ...changes } : current))
+  }
+  const hasChanges = editableProfileSignature(draft) !== baselineRef.current
+  const canSave = Boolean(
+    hasChanges &&
+      draft.name.trim() &&
+      draft.departureCity.trim() &&
+      draft.preferences.length >= 3,
+  )
+  const departureQuery = draft.departureCity.trim().toLocaleLowerCase()
+  const departureSuggestions = departureQuery
+    ? airportCities
+        .filter((option) =>
+          `${option.city} ${option.country} ${option.codes}`
+            .toLocaleLowerCase()
+            .includes(departureQuery),
+        )
+        .slice(0, 7)
+    : []
+  const initials =
+    draft.name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toLocaleUpperCase())
+      .join("") || "U"
+
+  const addPreference = (value: string) => {
+    const label = value.trim()
+    if (!label) return
+    if (
+      draft.preferences.some(
+        (preference) =>
+          preference.label.toLocaleLowerCase() === label.toLocaleLowerCase(),
+      )
+    )
+      return
+    updateDraft({
+      preferences: [...draft.preferences, { label, priority: "important" }],
+    })
+    setCustomPreference("")
+    setPreferenceOpen(false)
+  }
+
+  const save = async () => {
+    if (!canSave) return
+    setSaving(true)
+    setError("")
+    setMessage("")
+    const next: TravelerProfile = {
+      ...draft,
+      name: draft.name.trim(),
+      departureCity: draft.departureCity.trim(),
+      updatedAt: new Date().toISOString(),
+    }
+    try {
+      await saveTravelerProfile(next)
+      baselineRef.current = editableProfileSignature(next)
+      setGlobalProfile(next)
+      setMessage(
+        "Global profile saved. New hotel checks will use these settings",
+      )
+    } catch (caught) {
+      console.warn("Global profile could not be saved", caught)
+      setError("We couldn’t save your profile. Try again")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Shell viewport={viewport} go={go} showPreferences={false}>
+      <div className="mx-auto max-w-[860px] pb-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-[30px] font-bold">Profile</h1>
+            <p className="mt-2 text-[12px] text-[#7b756e]">
+              Global settings used as defaults for every new hotel check
+            </p>
+          </div>
+          <Button
+            primary
+            disabled={!canSave || saving}
+            onClick={() => void save()}
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          <Card>
+            <div className="flex flex-wrap items-center gap-5">
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="group relative grid size-24 shrink-0 overflow-hidden place-items-center rounded-full bg-[#ed8b72] text-[24px] font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+                aria-label="Change profile picture"
+              >
+                {draft.avatarDataUrl ? (
+                  <img
+                    src={draft.avatarDataUrl}
+                    alt="Profile"
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  initials
+                )}
+                <span className="absolute inset-x-0 bottom-0 grid h-8 place-items-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <Camera className="size-4" />
+                </span>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ""
+                  if (!file) return
+                  void avatarDataUrlFromFile(file)
+                    .then((avatarDataUrl) => updateDraft({ avatarDataUrl }))
+                    .catch((caught) =>
+                      setError(
+                        caught instanceof Error
+                          ? caught.message
+                          : "This image could not be uploaded",
+                      ),
+                    )
+                }}
+              />
+              <div className="min-w-[240px] flex-1">
+                <label
+                  className="block text-[12px] font-semibold"
+                  htmlFor="profile-name"
+                >
+                  Name
+                </label>
+                <input
+                  id="profile-name"
+                  value={draft.name}
+                  onChange={(event) =>
+                    updateDraft({ name: event.target.value })
+                  }
+                  className="mt-2 h-11 w-full rounded-2xl border border-[#d8d3cc] bg-white px-4 text-[14px] outline-none focus:border-[#f06455]"
+                  placeholder="Enter your name"
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button onClick={() => avatarInputRef.current?.click()}>
+                    Upload photo
+                  </Button>
+                  {draft.avatarDataUrl && (
+                    <Button
+                      onClick={() => updateDraft({ avatarDataUrl: undefined })}
+                    >
+                      Remove photo
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </Card>
-          <Card>
-            <h2 className="font-bold">Preferences</h2>
-            <div className="mt-5 space-y-3">
-              {[
-                ["Quiet room", "Important"],
-                ["Excellent breakfast", "Normal"],
-                ["Traveling with dog", "Critical"],
-              ].map(([a, b]) => (
-                <div
-                  key={a}
-                  className="flex justify-between rounded-2xl border p-4 text-[12px]"
+
+          <div
+            className={`grid gap-4 ${
+              viewport === "mobile" ? "grid-cols-1" : "grid-cols-2"
+            }`}
+          >
+            <Card>
+              <h2 className="text-[16px] font-semibold">Usual travelers</h2>
+              <div className="mt-5 space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[14px]">Adults</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={draft.adults <= 1}
+                      onClick={() =>
+                        updateDraft({ adults: Math.max(1, draft.adults - 1) })
+                      }
+                      className="grid size-9 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
+                    >
+                      −
+                    </button>
+                    <span className="w-5 text-center text-[14px] tabular-nums">
+                      {draft.adults}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateDraft({ adults: draft.adults + 1 })}
+                      className="grid size-9 place-items-center rounded-full border border-[#d8d3cc]"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                {draft.childAges.map((age, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-[14px]">Child {index + 1}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove child ${index + 1}`}
+                        onClick={() =>
+                          updateDraft({
+                            childAges: draft.childAges.filter(
+                              (_, itemIndex) => itemIndex !== index,
+                            ),
+                          })
+                        }
+                        className="grid size-7 place-items-center rounded-lg text-[#8f8880] hover:text-[#d95448]"
+                      >
+                        <Icon name="trash" size={14} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={age <= 0}
+                        onClick={() =>
+                          updateDraft({
+                            childAges: draft.childAges.map(
+                              (value, itemIndex) =>
+                                itemIndex === index
+                                  ? Math.max(0, value - 1)
+                                  : value,
+                            ),
+                          })
+                        }
+                        className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
+                      >
+                        −
+                      </button>
+                      <span className="w-[72px] text-center text-[11px] tabular-nums">
+                        {age === 0
+                          ? "Under 1 year"
+                          : `${age} ${age === 1 ? "year" : "years"}`}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={age >= 17}
+                        onClick={() =>
+                          updateDraft({
+                            childAges: draft.childAges.map(
+                              (value, itemIndex) =>
+                                itemIndex === index
+                                  ? Math.min(17, value + 1)
+                                  : value,
+                            ),
+                          })
+                        }
+                        className="grid size-8 place-items-center rounded-full border border-[#d8d3cc] disabled:opacity-35"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateDraft({ childAges: [...draft.childAges, 0] })
+                  }
+                  className="text-[12px] font-semibold text-[#e55e51]"
                 >
-                  <b>{a}</b>
-                  <span>{b}</span>
+                  + Add child
+                </button>
+                <div className="flex items-center justify-between gap-3 border-t border-[#ebe7e1] pt-4">
+                  <span className="text-[14px]">Traveling with pets</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={draft.travelsWithPets}
+                    onClick={() =>
+                      updateDraft({ travelsWithPets: !draft.travelsWithPets })
+                    }
+                    className={`relative h-6 w-[41px] rounded-full ${
+                      draft.travelsWithPets ? "bg-[#f75b56]" : "bg-[#d8d6d2]"
+                    }`}
+                  >
+                    <span
+                      className={`absolute left-1 top-1 size-4 rounded-full bg-white shadow-sm transition-transform ${
+                        draft.travelsWithPets ? "translate-x-[17px]" : ""
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <h2 className="text-[16px] font-semibold">Departure city</h2>
+              <p className="mt-2 text-[12px] text-[#7b756e]">
+                Only cities with airports are suggested
+              </p>
+              <div ref={departureRef} className="relative mt-5">
+                <input
+                  value={draft.departureCity}
+                  onChange={(event) => {
+                    updateDraft({ departureCity: event.target.value })
+                    setDepartureOpen(Boolean(event.target.value))
+                  }}
+                  onFocus={() => setDepartureOpen(Boolean(draft.departureCity))}
+                  placeholder="Enter a city or airport"
+                  role="combobox"
+                  aria-expanded={departureOpen}
+                  className="h-11 w-full rounded-2xl border border-[#d8d3cc] bg-white px-4 pr-10 text-[14px] outline-none focus:border-[#f06455]"
+                />
+                <Search className="pointer-events-none absolute right-4 top-[14px] size-4 text-[#8f8880]" />
+                {departureOpen && departureQuery && (
+                  <div className="motion-swap absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-64 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-2 shadow-[0_16px_34px_rgba(35,30,27,.12)]">
+                    {departureSuggestions.length ? (
+                      departureSuggestions.map((option) => (
+                        <button
+                          key={`${option.city}-${option.codes}`}
+                          type="button"
+                          onClick={() => {
+                            updateDraft({
+                              departureCity: airportCityValue(option),
+                            })
+                            setDepartureOpen(false)
+                          }}
+                          className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left hover:bg-[#f3f0eb]"
+                        >
+                          <span>
+                            <b className="block text-[12px]">{option.city}</b>
+                            <small className="text-[#8f8880]">
+                              {option.country}
+                            </small>
+                          </span>
+                          <span className="rounded-full bg-[#f3f0eb] px-2 py-1 text-[10px]">
+                            {option.codes}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-3 py-3 text-[12px] text-[#8f8880]">
+                        No airport cities found
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          <Card>
+            <h2 className="text-[16px] font-semibold">Hotel preferences</h2>
+            <p className="mt-2 text-[12px] text-[#7b756e]">
+              Keep at least 3 preferences and set each as Important or Critical
+            </p>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              {draft.preferences.map((preference) => (
+                <div
+                  key={preference.label}
+                  className="flex items-center gap-2 rounded-2xl border border-[#e2ddd6] bg-white p-3"
+                >
+                  <span className="min-w-0 flex-1 truncate text-[12px]">
+                    {preference.label}
+                  </span>
+                  {(["important", "critical"] as const).map((priority) => (
+                    <button
+                      key={priority}
+                      type="button"
+                      onClick={() =>
+                        updateDraft({
+                          preferences: draft.preferences.map((item) =>
+                            item.label === preference.label
+                              ? { ...item, priority }
+                              : item,
+                          ),
+                        })
+                      }
+                      className={`rounded-full px-2 py-1 text-[10px] capitalize ${
+                        preference.priority === priority
+                          ? "bg-[#f75b56] text-white"
+                          : "bg-[#f3f0eb] text-[#77716a]"
+                      }`}
+                    >
+                      {priority}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${preference.label}`}
+                    onClick={() =>
+                      updateDraft({
+                        preferences: draft.preferences.filter(
+                          (item) => item.label !== preference.label,
+                        ),
+                      })
+                    }
+                    className="grid size-7 place-items-center rounded-full text-[#8f8880] hover:text-[#d95448]"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
+            <div ref={preferenceRef} className="relative mt-4 max-w-[420px]">
+              <button
+                type="button"
+                aria-expanded={preferenceOpen}
+                onClick={() => setPreferenceOpen((current) => !current)}
+                className="flex h-11 w-full items-center justify-between rounded-2xl border border-[#d8d3cc] bg-white px-4 text-left text-[12px]"
+              >
+                + Add preference
+                <ChevronDown
+                  className={`size-4 transition-transform ${
+                    preferenceOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              {preferenceOpen && (
+                <div className="motion-swap absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-72 overflow-y-auto rounded-2xl border border-[#ded8d0] bg-white p-2 shadow-[0_16px_34px_rgba(35,30,27,.12)]">
+                  <div className="flex gap-2 border-b border-[#ebe7e1] pb-2">
+                    <input
+                      value={customPreference}
+                      onChange={(event) =>
+                        setCustomPreference(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") return
+                        event.preventDefault()
+                        addPreference(customPreference)
+                      }}
+                      className="h-9 min-w-0 flex-1 rounded-xl bg-[#f7f4ef] px-3 text-[12px] outline-none"
+                      placeholder="Enter your own preference"
+                    />
+                    <button
+                      type="button"
+                      disabled={!customPreference.trim()}
+                      onClick={() => addPreference(customPreference)}
+                      className="grid size-9 place-items-center rounded-xl bg-[#f75b56] text-white disabled:opacity-35"
+                    >
+                      <Plus className="size-4" />
+                    </button>
+                  </div>
+                  <div className="mt-1">
+                    {onboardingPreferenceOptions
+                      .filter(
+                        (label) =>
+                          !draft.preferences.some(
+                            (preference) => preference.label === label,
+                          ),
+                      )
+                      .map((label) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => addPreference(label)}
+                          className="block w-full rounded-xl px-3 py-2.5 text-left text-[12px] hover:bg-[#f3f0eb]"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </Card>
         </div>
-        <div className="mt-5">
-          <Button primary onClick={() => go("home")}>
-            Save profile
-          </Button>
+
+        {(message || error) && (
+          <p
+            role={error ? "alert" : "status"}
+            className={`mt-4 text-[12px] ${
+              error ? "text-[#b2473e]" : "text-[#477555]"
+            }`}
+          >
+            {error || message}
+          </p>
+        )}
+      </div>
+    </Shell>
+  )
+}
+
+function AccountCreditsPage({ viewport, go }: { viewport: Viewport go: Go }) {
+  const user = auth.currentUser
+  const [selectedPackage, setSelectedPackage] = useState("5")
+  const [message, setMessage] = useState("")
+  const [resetting, setResetting] = useState(false)
+  const providerId = user?.providerData[0]?.providerId || "password"
+  const providerLabel =
+    providerId === "google.com"
+      ? "Google"
+      : providerId === "facebook.com"
+        ? "Facebook"
+        : "Email and password"
+  const packages = [
+    ["5", "€10"],
+    ["10", "€18"],
+    ["20", "€20"],
+    ["50", "€50"],
+    ["100", "€100"],
+  ]
+
+  const resetPassword = async () => {
+    if (!user?.email) return
+    setResetting(true)
+    setMessage("")
+    try {
+      await sendPasswordResetEmail(auth, user.email)
+      setMessage("Password reset email sent")
+    } catch (caught) {
+      console.warn("Password reset email could not be sent", caught)
+      setMessage("Password reset email could not be sent. Try again")
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  return (
+    <Shell viewport={viewport} go={go} showPreferences={false}>
+      <div className="mx-auto max-w-[860px] pb-8">
+        <h1 className="text-[30px] font-bold">Account &amp; credits</h1>
+        <p className="mt-2 text-[12px] text-[#7b756e]">
+          Manage account access, security, credits and payments
+        </p>
+
+        <div className="mt-6 space-y-4">
+          <Card>
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 place-items-center rounded-full bg-[#f3f0eb]">
+                <KeyRound className="size-4" />
+              </span>
+              <div>
+                <h2 className="text-[16px] font-semibold">Account access</h2>
+                <p className="mt-1 text-[12px] text-[#7b756e]">
+                  {user?.email || "No email available"}
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-[#f7f4ef] p-4">
+                <small className="text-[#8f8880]">Sign-in method</small>
+                <b className="mt-2 block text-[12px]">{providerLabel}</b>
+              </div>
+              <div className="rounded-2xl bg-[#f7f4ef] p-4">
+                <small className="text-[#8f8880]">Email status</small>
+                <b className="mt-2 block text-[12px]">
+                  {user?.emailVerified ? "Verified" : "Not verified"}
+                </b>
+              </div>
+              <div className="rounded-2xl bg-[#f7f4ef] p-4">
+                <small className="text-[#8f8880]">Security</small>
+                <b className="mt-2 block text-[12px]">
+                  Protected by Firebase Auth
+                </b>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {providerId === "password" && (
+                <Button
+                  disabled={resetting}
+                  onClick={() => void resetPassword()}
+                >
+                  {resetting ? "Sending…" : "Reset password"}
+                </Button>
+              )}
+              <Button
+                onClick={() =>
+                  void signOut(auth).finally(() => window.location.assign("/"))
+                }
+              >
+                Sign out
+              </Button>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-[16px] font-semibold">Credits</h2>
+                <p className="mt-2 text-[12px] text-[#7b756e]">
+                  Credits never expire
+                </p>
+              </div>
+              <div className="rounded-2xl bg-[#fff0eb] px-5 py-3 text-right">
+                <strong className="text-[24px] text-[#e85e51]">2</strong>
+                <span className="ml-2 text-[12px]">free checks left</span>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-5">
+              {packages.map(([checks, price]) => (
+                <button
+                  key={checks}
+                  type="button"
+                  aria-pressed={selectedPackage === checks}
+                  onClick={() => {
+                    setSelectedPackage(checks)
+                    setMessage("")
+                  }}
+                  className={`rounded-2xl border p-4 text-left ${
+                    selectedPackage === checks
+                      ? "border-[#f06455] bg-[#fff5f1]"
+                      : "border-[#e2ddd6] bg-white"
+                  }`}
+                >
+                  <span className="block text-[12px]">{checks} checks</span>
+                  <strong className="mt-2 block text-[18px]">{price}</strong>
+                </button>
+              ))}
+            </div>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Button
+                primary
+                onClick={() =>
+                  setMessage(
+                    "Secure checkout is not connected yet. No charge was made",
+                  )
+                }
+              >
+                Buy {selectedPackage} checks
+              </Button>
+              <span className="text-[11px] text-[#8f8880]">
+                Payments are charged in EUR
+              </span>
+            </div>
+          </Card>
+
+          <div
+            className={`grid gap-4 ${
+              viewport === "mobile" ? "grid-cols-1" : "grid-cols-2"
+            }`}
+          >
+            <Card>
+              <div className="flex items-center gap-3">
+                <CreditCard className="size-4" />
+                <h2 className="text-[16px] font-semibold">Payment details</h2>
+              </div>
+              <p className="mt-5 text-[12px] text-[#7b756e]">
+                No payment method saved
+              </p>
+              <p className="mt-2 text-[11px] text-[#9a938b]">
+                Payment details will be managed by the secure checkout provider
+              </p>
+            </Card>
+            <Card>
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="size-4" />
+                <h2 className="text-[16px] font-semibold">Purchase history</h2>
+              </div>
+              <p className="mt-5 text-[12px] text-[#7b756e]">
+                No credit purchases yet
+              </p>
+              <p className="mt-2 text-[11px] text-[#9a938b]">
+                Receipts and purchased credit packs will appear here
+              </p>
+            </Card>
+          </div>
         </div>
+
+        {message && (
+          <p role="status" className="mt-4 text-[12px] text-[#6f6962]">
+            {message}
+          </p>
+        )}
       </div>
     </Shell>
   )
@@ -3491,78 +4322,80 @@ function UtilityPage({
   viewport: Viewport
   go: Go
 }) {
+  const { hotelChecks, openHotelCheck, startNewHotelCheck } =
+    useContext(DraftContext)
+  const savedHotels = hotelChecks.filter(
+    (record) => record.saved && record.analysisResult,
+  )
+
   if (screen === "saved")
     return (
-      <Shell viewport={viewport} go={go}>
+      <Shell viewport={viewport} go={go} showPreferences={false}>
         <div className="mx-auto max-w-[820px]">
           <h1 className="text-[30px] font-bold">Saved hotels</h1>
           <p className="mt-2 text-[12px] text-[#7b756e]">
             Hotels saved with a specific result version
           </p>
-          <div className="mt-6 grid gap-4">
-            {[
-              [
-                "Gennadi Grand Resort",
-                "Rhodes, Greece",
-                "82% Match",
-                rhodesImage,
-              ],
-              ["Baros Maldives", "Maldives", "Saved result", maldivesImage],
-            ].map(([hotel, place, status, image]) => (
-              <button
-                key={hotel}
-                onClick={() => go("result")}
-                className="flex items-center gap-4 rounded-[24px] border border-[#e2ddd6] bg-white p-4 text-left hover:border-[#bcb5ad] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
-              >
-                <img
-                  src={image}
-                  alt=""
-                  className="size-16 rounded-2xl object-cover"
-                />
-                <span className="flex-1">
-                  <b className="block text-[14px]">{hotel}</b>
-                  <span className="mt-1 block text-[12px] text-[#7b756e]">
-                    {place}
+          {savedHotels.length ? (
+            <div className="mt-6 grid gap-4">
+              {savedHotels.map((record) => (
+                <button
+                  key={record.id}
+                  onClick={() => openHotelCheck(record.id)}
+                  className="flex items-center gap-4 rounded-[24px] border border-[#e2ddd6] bg-white p-4 text-left hover:border-[#bcb5ad] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+                >
+                  <img
+                    src={
+                      destinationImages[record.hotel] ||
+                      historyImagePool[
+                        historyImageSeed(historyEntryFromRecord(record)) %
+                          historyImagePool.length
+                      ]
+                    }
+                    alt=""
+                    className="size-16 rounded-2xl object-cover"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-[14px]">{record.hotel}</b>
+                    <span className="mt-1 block truncate text-[12px] text-[#7b756e]">
+                      {simpleDestination(
+                        record.place,
+                        record.city,
+                        record.country,
+                      )}
+                    </span>
                   </span>
-                </span>
-                <span className="text-[12px] font-semibold text-[#477555]">
-                  {status}
-                </span>
-              </button>
-            ))}
-          </div>
+                  <span className="shrink-0 text-[12px] font-semibold text-[#477555]">
+                    {record.analysisResult?.matchScore === null
+                      ? "Saved result"
+                      : `${record.analysisResult?.matchScore}% Match`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-6 flex min-h-[360px] flex-col items-center justify-center rounded-[28px] border border-[#e2ddd6] bg-white px-6 text-center">
+              <span className="grid size-20 place-items-center rounded-full bg-[#f3f0eb]">
+                <Bookmark className="size-7" strokeWidth={1.5} />
+              </span>
+              <h2 className="mt-5 text-[18px] font-semibold">
+                No saved hotels yet
+              </h2>
+              <p className="mt-2 max-w-[360px] text-[12px] leading-relaxed text-[#7b756e]">
+                Save a completed hotel result and it will appear here
+              </p>
+              <div className="mt-5">
+                <Button primary onClick={startNewHotelCheck}>
+                  Check a hotel
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </Shell>
     )
   if (screen === "settings")
-    return (
-      <Shell viewport={viewport} go={go}>
-        <div className="mx-auto max-w-[760px]">
-          <h1 className="text-[30px] font-bold">Settings</h1>
-          <div className="mt-6 space-y-4">
-            <Card>
-              <h2 className="font-bold">Account</h2>
-              <div className="mt-5 space-y-4">
-                <Field label="Name" value="Olivia" />
-                <Field label="Email" value="olivia@example.com" />
-                <Field label="Sign-in method" value="Email magic link" />
-              </div>
-            </Card>
-            <Card>
-              <h2 className="font-bold">Notifications</h2>
-              <label className="mt-5 flex items-center justify-between text-[12px]">
-                <span>In-app check updates</span>
-                <input type="checkbox" defaultChecked />
-              </label>
-              <label className="mt-4 flex items-center justify-between text-[12px]">
-                <span>Email check updates</span>
-                <input type="checkbox" />
-              </label>
-            </Card>
-          </div>
-        </div>
-      </Shell>
-    )
+    return <AccountCreditsPage viewport={viewport} go={go} />
   return (
     <Shell viewport={viewport} go={go}>
       <div className="mx-auto max-w-[760px]">
@@ -3662,6 +4495,9 @@ export default function VisualLab() {
   })
   const [homeInstance, setHomeInstance] = useState(0)
   const [activeCheckId, setActiveCheckId] = useState<string | null>(null)
+  const [globalProfile, setGlobalProfile] = useState<TravelerProfile | null>(
+    null,
+  )
   const [tripContext, setTripContext] = useState<TravelerProfile | null>(null)
   const [newHotelCheckActive, setNewHotelCheckActive] = useState(false)
 
@@ -3675,7 +4511,7 @@ export default function VisualLab() {
   }
 
   const createDraft = (hotel: HotelOption) => {
-    const record = createHotelCheckRecord(hotel, tripContext)
+    const record = createHotelCheckRecord(hotel, tripContext || globalProfile)
     setNewHotelCheckActive(false)
     setDraftHotel(hotel)
     setHotelChecks(upsertLocalHotelCheck(record))
@@ -3724,6 +4560,7 @@ export default function VisualLab() {
   const startNewHotelCheck = () => {
     setNewHotelCheckActive(true)
     setActiveCheckId(null)
+    setTripContext(globalProfile)
     setScreen("home")
     setHomeInstance((current) => current + 1)
   }
@@ -3783,9 +4620,11 @@ export default function VisualLab() {
         draftHotel: currentDraftHotel,
         hotelChecks,
         activeCheckId,
+        globalProfile,
         tripContext,
         newHotelCheckActive,
         setTripContext,
+        setGlobalProfile,
         startNewHotelCheck,
         deleteHotelCheck,
         createDraft,
@@ -3813,7 +4652,12 @@ export default function VisualLab() {
 
   useEffect(() => {
     let active = true
-    const unsubscribe = onAuthStateChanged(auth, () => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user)
+        void loadTravelerProfile(user.uid).then((loadedProfile) => {
+          if (active) setGlobalProfile(loadedProfile)
+        })
+      else setGlobalProfile(null)
       void loadHotelChecks().then((records) => {
         if (!active) return
         setHotelChecks(records)

@@ -22,6 +22,8 @@ export type HotelCheckRecord = {
   analysisErrorCode?: string
   analysisPreferenceLabels?: Record<string, string>
   tripProfile?: TravelerProfile
+  saved?: boolean
+  savedAt?: string
   updatedAt: string
 }
 
@@ -63,6 +65,8 @@ function isHotelCheckRecord(value: unknown): value is HotelCheckRecord {
         typeof record.tripProfile.travelsWithPets === "boolean" &&
         typeof record.tripProfile.departureCity === "string" &&
         Array.isArray(record.tripProfile.preferences))) &&
+    (record.saved === undefined || typeof record.saved === "boolean") &&
+    (record.savedAt === undefined || typeof record.savedAt === "string") &&
     typeof record.updatedAt === "string"
   )
 }

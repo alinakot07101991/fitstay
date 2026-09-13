@@ -425,16 +425,19 @@ export function HotelAnalysisResultView({
   hotelName,
   result,
   preferenceLabels,
+  saved,
+  onSave,
   onCompare,
   onRetry,
 }: {
   hotelName: string
   result: HotelAnalysisResult
   preferenceLabels: Record<string, string>
+  saved: boolean
+  onSave: () => void
   onCompare: () => void
   onRetry: () => void
 }) {
-  const [saved, setSaved] = useState(false)
   const verdict = verdictFor(result)
   const categories = categoryBreakdown(result, preferenceLabels)
   const positives = result.preferences.filter((item) =>
@@ -648,7 +651,8 @@ export function HotelAnalysisResultView({
           <button
             type="button"
             data-variant="primary"
-            onClick={() => setSaved(true)}
+            onClick={onSave}
+            disabled={saved}
             className="rounded-full bg-coral px-6 py-3 text-[12px] font-semibold text-white"
           >
             {saved ? "Saved" : "Save hotel"}

@@ -8,6 +8,7 @@ export type TravelerPreference = {
 
 export type TravelerProfile = {
   name: string
+  avatarDataUrl?: string
   adults: number
   childAges: number[]
   travelsWithPets: boolean
@@ -29,6 +30,8 @@ function validTravelerProfile(value: unknown): value is TravelerProfile {
   const profile = value as Partial<TravelerProfile>
   return (
     typeof profile.name === "string" &&
+    (profile.avatarDataUrl === undefined ||
+      typeof profile.avatarDataUrl === "string") &&
     Number.isFinite(profile.adults) &&
     Array.isArray(profile.childAges) &&
     typeof profile.travelsWithPets === "boolean" &&
