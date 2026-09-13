@@ -919,7 +919,16 @@ function Preferences() {
     <aside className="min-h-[calc(100vh-70px)] overflow-y-auto border-l border-[#e7e3dd] bg-white/80 p-6 backdrop-blur-md">
       <div className="flex min-h-10 items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold">Your preferences</h2>
-        {!editing && profile && <Button onClick={beginEditing}>Edit</Button>}
+        {!editing && profile && (
+          <button
+            type="button"
+            onClick={beginEditing}
+            aria-label="Edit preferences"
+            className="grid size-9 place-items-center rounded-lg text-[12px] font-semibold text-[#2f2b28] transition-colors hover:bg-[#f3f0eb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f06455]/50"
+          >
+            Edit
+          </button>
+        )}
       </div>
 
       {!displayed ? (
